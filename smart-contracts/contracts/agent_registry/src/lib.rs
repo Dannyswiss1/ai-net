@@ -250,8 +250,18 @@ mod test {
 
         // Check if the record is stored in storage directly
         let agent_key = DataKey::Agent(record.id.clone());
-        let opt_record = env.storage().persistent().get::<DataKey, AgentRecord>(&agent_key);
+        let opt_record = env.as_contract(&client.address, || {
+            env.storage().persistent().get::<DataKey, AgentRecord>(&agent_key)
+        });
         assert!(opt_record.is_some(), "opt_record is None in storage!");
+
+        let cap_key = DataKey::CapabilityIndex(record.capability.clone());
+        let opt_ids = env.as_contract(&client.address, || {
+            env.storage().persistent().get::<DataKey, Vec<Symbol>>(&cap_key)
+        });
+        assert!(opt_ids.is_some(), "opt_ids is None in storage!");
+        let ids = opt_ids.unwrap();
+        assert_eq!(ids.len(), 1, "ids.len() is {}", ids.len());
 
         let results = client.lookup_agents(&Symbol::new(&env, "research"));
         assert_eq!(results.len(), 1);
