@@ -41,8 +41,8 @@ pub enum Error {
 }
 
 fn validate_record(env: &Env, record: &AgentRecord) -> Result<(), Error> {
-    let id_str = String::from_val(env, &record.id);
-    if id_str.len() > MAX_AGENT_ID {
+    let id_bytes = record.id.to_xdr(env);
+    if id_bytes.len() > MAX_AGENT_ID + 4 {
         return Err(Error::AgentIdTooLong);
     }
 
