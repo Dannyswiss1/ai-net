@@ -237,19 +237,13 @@ mod test {
         let owner = Address::generate(&env);
         let record = make_record(&env, "agent1", "research", owner);
         
-        let reg_res = client.try_register_agent(&record);
-        match reg_res {
-            Ok(Ok(())) => {}
-            Ok(Err(contract_err)) => {
-                panic!(
-                    "DEBUG: try_register_agent returned contract Err: {:?}",
-                    contract_err
-                );
-            }
-            Err(err) => {
-                panic!("DEBUG: try_register_agent returned Err: {:?}", err);
-            }
-        }
+        let id_bytes = record.id.to_xdr(&env);
+        let record_bytes = record.to_xdr(&env);
+        
+        assert!(id_bytes.len() <= MAX_AGENT_ID + 4, "id_bytes.len() is {}", id_bytes.len());
+        assert!(record_bytes.len() <= MAX_TOTAL_AGENT_STORAGE, "record_bytes.len() is {}", record_bytes.len());
+
+        client.register_agent(&record);
 
         let results = client.lookup_agents(&Symbol::new(&env, "research"));
         assert_eq!(results.len(), 1);
