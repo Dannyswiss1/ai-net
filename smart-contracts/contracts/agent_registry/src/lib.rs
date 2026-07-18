@@ -2,8 +2,14 @@
 
 use soroban_sdk::{
     contract, contracterror, contractimpl, contracttype, symbol_short, Address, Env, String,
-    Symbol, Vec,
+    Symbol, Vec, Map, Val, FromVal, TryFromVal,
 };
+use soroban_sdk::xdr::ToXdr;
+
+const MAX_AGENT_ID: u32 = 64;
+const MAX_METADATA_ENTRIES: u32 = 16;
+const MAX_METADATA_VALUE_SIZE: u32 = 256;
+const MAX_TOTAL_AGENT_STORAGE: u32 = 4096;
 
 #[contracttype]
 #[derive(Clone)]
@@ -13,6 +19,7 @@ pub struct AgentRecord {
     pub price_stroops: i128,
     pub endpoint: String,
     pub owner: Address,
+    pub metadata: Map<Symbol, Val>,
 }
 
 #[contracttype]
@@ -27,6 +34,36 @@ pub enum Error {
     NotFound = 1,
     Unauthorized = 2,
     AlreadyExists = 3,
+    AgentIdTooLong = 4,
+    TooManyMetadataEntries = 5,
+    MetadataValueTooLarge = 6,
+    StorageLimitExceeded = 7,
+}
+
+fn validate_record(env: &Env, record: &AgentRecord) -> Result<(), Error> {
+    let id_str = String::from_val(env, &record.id);
+    if id_str.len() > MAX_AGENT_ID {
+        return Err(Error::AgentIdTooLong);
+    }
+
+    if record.metadata.len() > MAX_METADATA_ENTRIES {
+        return Err(Error::TooManyMetadataEntries);
+    }
+
+    for item in record.metadata.iter() {
+        let (_key, val) = item;
+        let val_bytes = val.to_xdr(env);
+        if val_bytes.len() > MAX_METADATA_VALUE_SIZE {
+            return Err(Error::MetadataValueTooLarge);
+        }
+    }
+
+    let record_bytes = record.to_xdr(env);
+    if record_bytes.len() > MAX_TOTAL_AGENT_STORAGE {
+        return Err(Error::StorageLimitExceeded);
+    }
+
+    Ok(())
 }
 
 #[contract]
@@ -36,6 +73,8 @@ pub struct AgentRegistryContract;
 impl AgentRegistryContract {
     pub fn register_agent(env: Env, record: AgentRecord) -> Result<(), Error> {
         record.owner.require_auth();
+
+        validate_record(&env, &record)?;
 
         let agent_key = DataKey::Agent(record.id.clone());
         if env.storage().persistent().has(&agent_key) {
@@ -50,6 +89,47 @@ impl AgentRegistryContract {
             .unwrap_or_else(|| Vec::new(&env));
         ids.push_back(record.id.clone());
         env.storage().persistent().set(&cap_key, &ids);
+
+        env.storage().persistent().set(&agent_key, &record);
+        Ok(())
+    }
+
+    pub fn update_agent(env: Env, record: AgentRecord) -> Result<(), Error> {
+        let agent_key = DataKey::Agent(record.id.clone());
+        let existing_record: AgentRecord = env
+            .storage()
+            .persistent()
+            .get(&agent_key)
+            .ok_or(Error::NotFound)?;
+
+        existing_record.owner.require_auth();
+
+        validate_record(&env, &record)?;
+
+        if existing_record.capability != record.capability {
+            let old_cap_key = DataKey::CapabilityIndex(existing_record.capability.clone());
+            let old_ids: Vec<Symbol> = env
+                .storage()
+                .persistent()
+                .get(&old_cap_key)
+                .unwrap_or_else(|| Vec::new(&env));
+            let mut updated_old_ids = Vec::new(&env);
+            for id in old_ids.iter() {
+                if id != record.id {
+                    updated_old_ids.push_back(id);
+                }
+            }
+            env.storage().persistent().set(&old_cap_key, &updated_old_ids);
+
+            let new_cap_key = DataKey::CapabilityIndex(record.capability.clone());
+            let mut new_ids: Vec<Symbol> = env
+                .storage()
+                .persistent()
+                .get(&new_cap_key)
+                .unwrap_or_else(|| Vec::new(&env));
+            new_ids.push_back(record.id.clone());
+            env.storage().persistent().set(&new_cap_key, &new_ids);
+        }
 
         env.storage().persistent().set(&agent_key, &record);
         Ok(())
@@ -147,6 +227,7 @@ mod test {
             price_stroops: 1_000,
             endpoint: String::from_str(env, "https://agent.example.com"),
             owner,
+            metadata: Map::new(env),
         }
     }
 
@@ -258,5 +339,113 @@ mod test {
             client.try_update_pricing(&Symbol::new(&env, "ghost"), &100_i128),
             Err(Ok(Error::NotFound))
         );
+    }
+
+    #[test]
+    fn register_with_metadata_ok() {
+        let (env, client) = setup();
+        let owner = Address::generate(&env);
+        let mut record = make_record(&env, "agent1", "research", owner);
+        
+        let mut metadata = Map::new(&env);
+        metadata.set(Symbol::new(&env, "key1"), 123_i32.into_val(&env));
+        record.metadata = metadata;
+
+        client.register_agent(&record);
+        
+        let results = client.lookup_agents(&Symbol::new(&env, "research"));
+        assert_eq!(results.len(), 1);
+    }
+
+    #[test]
+    fn update_agent_ok() {
+        let (env, client) = setup();
+        let owner = Address::generate(&env);
+        let mut record = make_record(&env, "agent1", "research", owner.clone());
+        client.register_agent(&record);
+
+        record.capability = Symbol::new(&env, "risk");
+        let mut metadata = Map::new(&env);
+        metadata.set(Symbol::new(&env, "key1"), 456_i32.into_val(&env));
+        record.metadata = metadata;
+
+        client.update_agent(&record);
+
+        let old_results = client.lookup_agents(&Symbol::new(&env, "research"));
+        assert_eq!(old_results.len(), 0);
+
+        let new_results = client.lookup_agents(&Symbol::new(&env, "risk"));
+        assert_eq!(new_results.len(), 1);
+        assert_eq!(new_results.get(0).unwrap().id, Symbol::new(&env, "agent1"));
+    }
+
+    #[test]
+    fn update_agent_not_found() {
+        let (env, client) = setup();
+        let owner = Address::generate(&env);
+        let record = make_record(&env, "ghost", "research", owner);
+        let res = client.try_update_agent(&record);
+        assert_eq!(res, Err(Ok(Error::NotFound)));
+    }
+
+    #[test]
+    fn update_agent_wrong_signer_unauthorized() {
+        let env = Env::default();
+        let contract_id = env.register(AgentRegistryContract, ());
+        let client = AgentRegistryContractClient::new(&env, &contract_id);
+        let owner = Address::generate(&env);
+
+        env.mock_all_auths();
+        let record = make_record(&env, "agent1", "research", owner.clone());
+        client.register_agent(&record);
+
+        env.mock_auths(&[]);
+        let res = client.try_update_agent(&record);
+        assert!(res.is_err());
+    }
+
+    #[test]
+    fn validation_too_many_metadata_entries() {
+        let (env, client) = setup();
+        let owner = Address::generate(&env);
+        let mut record = make_record(&env, "agent1", "research", owner);
+
+        let mut metadata = Map::new(&env);
+        for i in 0..17 {
+            let key_str = std::format!("k{}", i);
+            metadata.set(Symbol::new(&env, &key_str), i.into_val(&env));
+        }
+        record.metadata = metadata;
+
+        let res = client.try_register_agent(&record);
+        assert_eq!(res, Err(Ok(Error::TooManyMetadataEntries)));
+    }
+
+    #[test]
+    fn validation_metadata_value_too_large() {
+        let (env, client) = setup();
+        let owner = Address::generate(&env);
+        let mut record = make_record(&env, "agent1", "research", owner);
+
+        let large_string = String::from_str(&env, &"a".repeat(257));
+        let mut metadata = Map::new(&env);
+        metadata.set(Symbol::new(&env, "large"), large_string.into_val(&env));
+        record.metadata = metadata;
+
+        let res = client.try_register_agent(&record);
+        assert_eq!(res, Err(Ok(Error::MetadataValueTooLarge)));
+    }
+
+    #[test]
+    fn validation_total_storage_limit_exceeded() {
+        let (env, client) = setup();
+        let owner = Address::generate(&env);
+        let mut record = make_record(&env, "agent1", "research", owner);
+
+        let large_endpoint = String::from_str(&env, &"h".repeat(4100));
+        record.endpoint = large_endpoint;
+
+        let res = client.try_register_agent(&record);
+        assert_eq!(res, Err(Ok(Error::StorageLimitExceeded)));
     }
 }

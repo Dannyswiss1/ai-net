@@ -71,7 +71,7 @@ fn e2e_deploy_register_lookup_deregister() {
         "register_agent",
         "--record",
         &format!(
-            r#"{{"id":"e2e_agent","capability":"test","price_stroops":1000,"endpoint":"https://e2e.example.com","owner":"{owner_addr}"}}"#
+            r#"{{"id":"e2e_agent","capability":"test","price_stroops":1000,"endpoint":"https://e2e.example.com","owner":"{owner_addr}","metadata":{{}}}}"#
         ),
     ]);
     assert!(
