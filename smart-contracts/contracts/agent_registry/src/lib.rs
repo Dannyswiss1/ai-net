@@ -243,7 +243,15 @@ mod test {
         assert!(id_bytes.len() <= MAX_AGENT_ID + 4, "id_bytes.len() is {}", id_bytes.len());
         assert!(record_bytes.len() <= MAX_TOTAL_AGENT_STORAGE, "record_bytes.len() is {}", record_bytes.len());
 
-        client.register_agent(&record);
+        let reg_res = client.try_register_agent(&record);
+        assert!(reg_res.is_ok(), "try_register_agent returned Err: {:?}", reg_res);
+        let reg_inner = reg_res.unwrap();
+        assert!(reg_inner.is_ok(), "try_register_agent inner result is Err: {:?}", reg_inner);
+
+        // Check if the record is stored in storage directly
+        let agent_key = DataKey::Agent(record.id.clone());
+        let opt_record = env.storage().persistent().get::<DataKey, AgentRecord>(&agent_key);
+        assert!(opt_record.is_some(), "opt_record is None in storage!");
 
         let results = client.lookup_agents(&Symbol::new(&env, "research"));
         assert_eq!(results.len(), 1);
