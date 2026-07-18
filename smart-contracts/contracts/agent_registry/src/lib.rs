@@ -241,7 +241,10 @@ mod test {
         match reg_res {
             Ok(Ok(())) => {}
             Ok(Err(contract_err)) => {
-                panic!("DEBUG: try_register_agent returned contract Err: {:?}", contract_err);
+                panic!(
+                    "DEBUG: try_register_agent returned contract Err: {:?}",
+                    contract_err
+                );
             }
             Err(err) => {
                 panic!("DEBUG: try_register_agent returned Err: {:?}", err);
@@ -354,6 +357,7 @@ mod test {
 
     #[test]
     fn register_with_metadata_ok() {
+        
         let (env, client) = setup();
         let owner = Address::generate(&env);
         let mut record = make_record(&env, "agent1", "research", owner);
