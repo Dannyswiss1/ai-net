@@ -235,7 +235,18 @@ mod test {
     fn register_and_lookup() {
         let (env, client) = setup();
         let owner = Address::generate(&env);
-        client.register_agent(&make_record(&env, "agent1", "research", owner));
+        let record = make_record(&env, "agent1", "research", owner);
+        
+        let reg_res = client.try_register_agent(&record);
+        match reg_res {
+            Ok(Ok(())) => {}
+            Ok(Err(contract_err)) => {
+                panic!("DEBUG: try_register_agent returned contract Err: {:?}", contract_err);
+            }
+            Err(err) => {
+                panic!("DEBUG: try_register_agent returned Err: {:?}", err);
+            }
+        }
 
         let results = client.lookup_agents(&Symbol::new(&env, "research"));
         assert_eq!(results.len(), 1);
