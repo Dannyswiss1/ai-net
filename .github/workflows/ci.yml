@@ -174,7 +174,7 @@ jobs:
         uses: dtolnay/rust-toolchain@stable
         with:
           components: clippy, rustfmt
-          targets: wasm32v1-none
+          targets: wasm32-unknown-unknown
 
       - name: Cache Cargo dependencies
         if: ${{ needs.detect_projects.outputs.smart_contracts_cargo == 'true' }}
