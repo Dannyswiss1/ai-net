@@ -51,15 +51,15 @@ jobs:
       - name: Set up Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: 20
+          node-version: 24
 
       - name: Cache dependencies
         uses: actions/cache@v4
         with:
           path: backend/node_modules
-          key: ${{ runner.os }}-node-20-backend-${{ hashFiles('backend/package-lock.json', 'backend/package.json') }}
+          key: ${{ runner.os }}-node-24-backend-${{ hashFiles('backend/package-lock.json', 'backend/package.json') }}
           restore-keys: |
-            ${{ runner.os }}-node-20-backend-
+            ${{ runner.os }}-node-24-backend-
 
       - name: Install dependencies
         run: npm install
@@ -91,15 +91,15 @@ jobs:
       - name: Set up Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: 20
+          node-version: 24
 
       - name: Cache dependencies
         uses: actions/cache@v4
         with:
           path: backend/node_modules
-          key: ${{ runner.os }}-node-20-backend-${{ hashFiles('backend/package-lock.json', 'backend/package.json') }}
+          key: ${{ runner.os }}-node-24-backend-${{ hashFiles('backend/package-lock.json', 'backend/package.json') }}
           restore-keys: |
-            ${{ runner.os }}-node-20-backend-
+            ${{ runner.os }}-node-24-backend-
 
       - name: Install dependencies
         run: npm install
@@ -128,15 +128,15 @@ jobs:
       - name: Set up Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: 20
+          node-version: 24
 
       - name: Cache dependencies
         uses: actions/cache@v4
         with:
           path: frontend/node_modules
-          key: ${{ runner.os }}-node-20-frontend-${{ hashFiles('frontend/package-lock.json', 'frontend/package.json') }}
+          key: ${{ runner.os }}-node-24-frontend-${{ hashFiles('frontend/package-lock.json', 'frontend/package.json') }}
           restore-keys: |
-            ${{ runner.os }}-node-20-frontend-
+            ${{ runner.os }}-node-24-frontend-
 
       - name: Install dependencies
         run: npm install
@@ -167,7 +167,7 @@ jobs:
       - name: Set up Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: 20
+          node-version: 24
 
       - name: Set up Rust
         if: ${{ needs.detect_projects.outputs.smart_contracts_cargo == 'true' }}
@@ -186,9 +186,9 @@ jobs:
         uses: actions/cache@v4
         with:
           path: smart-contracts/node_modules
-          key: ${{ runner.os }}-node-20-smart-contracts-${{ hashFiles('smart-contracts/package-lock.json', 'smart-contracts/package.json') }}
+          key: ${{ runner.os }}-node-24-smart-contracts-${{ hashFiles('smart-contracts/package-lock.json', 'smart-contracts/package.json') }}
           restore-keys: |
-            ${{ runner.os }}-node-20-smart-contracts-
+            ${{ runner.os }}-node-24-smart-contracts-
 
       - name: Install dependencies
         run: npm install
