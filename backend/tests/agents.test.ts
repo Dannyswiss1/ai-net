@@ -12,7 +12,8 @@ const codingAgent: AgentRecord = {
   endpoint: "http://127.0.0.1:3001/health",
   stellarPublicKey: "GBXX...",
   reputationScore: 0,
-  lastSeenAt: new Date().toISOString()
+  lastSeenAt: new Date().toISOString(),
+  status: "online"
 };
 
 function createTestApp(initialAgents: AgentRecord[] = [], healthTimeoutMs = 500) {
@@ -25,7 +26,8 @@ function createTestApp(initialAgents: AgentRecord[] = [], healthTimeoutMs = 500)
       endpoint         TEXT NOT NULL,
       stellarPublicKey TEXT NOT NULL,
       reputationScore  REAL NOT NULL DEFAULT 0,
-      lastSeenAt       TEXT NOT NULL
+      lastSeenAt       TEXT NOT NULL,
+      status           TEXT NOT NULL DEFAULT 'online'
     )
   `);
   const db = createAgentDb(rawDb);
@@ -119,6 +121,25 @@ describe("Agents API route", () => {
 
   it("returns 404 when checking health for an unknown agent", async () => {
     const response = await request(createTestApp()).get("/api/agents/missing/health");
+
+    expect(response.status).toBe(404);
+    expect(response.body).toEqual({ error: "Agent not found" });
+  });
+
+  it("returns 204 and updates lastSeenAt on heartbeat", async () => {
+    const app = createTestApp([codingAgent]);
+    const before = new Date();
+
+    const response = await request(app).post("/api/agents/coding-1/heartbeat");
+
+    expect(response.status).toBe(204);
+    const updated = await request(app).get("/api/agents/coding-1");
+    expect(new Date(updated.body.lastSeenAt).getTime()).toBeGreaterThanOrEqual(before.getTime());
+    expect(updated.body.status).toBe("online");
+  });
+
+  it("returns 404 when sending heartbeat to an unknown agent", async () => {
+    const response = await request(createTestApp()).post("/api/agents/missing/heartbeat");
 
     expect(response.status).toBe(404);
     expect(response.body).toEqual({ error: "Agent not found" });

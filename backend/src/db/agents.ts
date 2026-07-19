@@ -9,6 +9,7 @@ export interface AgentRecord {
   stellarPublicKey: string;
   reputationScore: number;
   lastSeenAt: string;
+  status: 'online' | 'offline';
 }
 
 let _agentDb: Database.Database | null = null;
@@ -25,7 +26,8 @@ export function getAgentDb(dbPath?: string): Database.Database {
         endpoint         TEXT NOT NULL,
         stellarPublicKey TEXT NOT NULL,
         reputationScore  REAL NOT NULL DEFAULT 0,
-        lastSeenAt       TEXT NOT NULL
+        lastSeenAt       TEXT NOT NULL,
+        status           TEXT NOT NULL DEFAULT 'online'
       )
     `);
   }
@@ -40,23 +42,25 @@ export function closeAgentDb(): void {
 export interface AgentDb {
   upsert(agent: AgentRecord): void;
   findById(id: string): AgentRecord | undefined;
-  list(filters?: { capability?: string; minReputation?: number; maxPriceXLM?: number }): AgentRecord[];
+  list(filters?: { capability?: string; minReputation?: number; maxPriceXLM?: number; status?: string }): AgentRecord[];
   delete(id: string): void;
   updateReputation(id: string, delta: number): void;
+  markOffline(olderThan: string): void;
 }
 
 export function createAgentDb(db: Database.Database): AgentDb {
   return {
     upsert(agent: AgentRecord): void {
       db.prepare(`
-        INSERT INTO agents (id, capabilities, pricingXLM, endpoint, stellarPublicKey, reputationScore, lastSeenAt)
-        VALUES (@id, @capabilities, @pricingXLM, @endpoint, @stellarPublicKey, @reputationScore, @lastSeenAt)
+        INSERT INTO agents (id, capabilities, pricingXLM, endpoint, stellarPublicKey, reputationScore, lastSeenAt, status)
+        VALUES (@id, @capabilities, @pricingXLM, @endpoint, @stellarPublicKey, @reputationScore, @lastSeenAt, @status)
         ON CONFLICT(id) DO UPDATE SET
           capabilities = excluded.capabilities,
           pricingXLM = excluded.pricingXLM,
           endpoint = excluded.endpoint,
           stellarPublicKey = excluded.stellarPublicKey,
-          lastSeenAt = excluded.lastSeenAt
+          lastSeenAt = excluded.lastSeenAt,
+          status = excluded.status
       `).run({
         ...agent,
         capabilities: JSON.stringify(agent.capabilities)
@@ -72,7 +76,7 @@ export function createAgentDb(db: Database.Database): AgentDb {
       };
     },
 
-    list(filters?: { capability?: string; minReputation?: number; maxPriceXLM?: number }): AgentRecord[] {
+    list(filters?: { capability?: string; minReputation?: number; maxPriceXLM?: number; status?: string }): AgentRecord[] {
       let query = "SELECT * FROM agents WHERE 1=1";
       const params: any[] = [];
       
@@ -88,6 +92,10 @@ export function createAgentDb(db: Database.Database): AgentDb {
         query += " AND EXISTS (SELECT 1 FROM json_each(capabilities) WHERE value = ?)";
         params.push(filters.capability);
       }
+      if (filters?.status !== undefined) {
+        query += " AND status = ?";
+        params.push(filters.status);
+      }
 
       const rows = db.prepare(query).all(...params) as any[];
       return rows.map(row => ({
@@ -102,6 +110,10 @@ export function createAgentDb(db: Database.Database): AgentDb {
 
     updateReputation(id: string, delta: number): void {
       db.prepare("UPDATE agents SET reputationScore = reputationScore + ? WHERE id = ?").run(delta, id);
+    },
+
+    markOffline(olderThan: string): void {
+      db.prepare("UPDATE agents SET status = 'offline' WHERE lastSeenAt < ? AND status = 'online'").run(olderThan);
     }
   };
 }

@@ -5,9 +5,10 @@
  */
 
 import { createApp } from "./api/app";
-import { initializeAgents } from "./agents";
-import { startAgentSync } from "./registry/sync";
+import { initializeAgents, globalAgentRegistry } from "./agents";
+import { startAgentSync, stopAgentSync } from "./registry/sync";
 import { loadConfig, getConfig } from "./config";
+import { AgentCleanupService } from "./services/agentCleanup";
 
 async function main() {
   // ── Validate env config at startup ──────────────────────────────────────────
@@ -23,6 +24,10 @@ async function main() {
     // Initialize all agents and register them
     console.log("[ai-net-backend] Initializing agents...");
     await initializeAgents();
+
+    // Start agent cleanup service
+    const cleanupService = new AgentCleanupService();
+    cleanupService.start();
 
     // Create and start the server
     const { httpServer } = createApp();
@@ -40,6 +45,7 @@ async function main() {
       console.log("  - POST /api/agents/register        - Register new agents");
       console.log("  - GET  /api/agents                 - List all agents");
       console.log("  - GET  /api/agents/capability/:type - Find agents by capability");
+      console.log("  - POST /api/agents/:id/heartbeat    - Agent heartbeat");
     });
 
     // ── Graceful shutdown ──────────────────────────────────────────────────────
@@ -49,6 +55,10 @@ async function main() {
         console.error("[ai-net-backend] Forced shutdown after 10s timeout");
         process.exit(1);
       }, 10_000);
+
+      cleanupService.stop();
+      globalAgentRegistry.shutdown();
+      stopAgentSync();
 
       httpServer.close(() => {
         clearTimeout(timeout);

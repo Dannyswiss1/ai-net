@@ -114,12 +114,26 @@ export function createAgentsRouter(options: AgentsRouterOptions = {}): Router {
       endpoint: data.endpoint,
       stellarPublicKey: data.stellarPublicKey,
       reputationScore: 0,
-      lastSeenAt: new Date().toISOString()
+      lastSeenAt: new Date().toISOString(),
+      status: 'online' as const
     };
     
     db.upsert(agent);
     
     res.status(201).json(agent);
+  });
+
+  // POST /api/agents/:id/heartbeat
+  router.post("/:id/heartbeat", (req: Request, res: Response): void => {
+    const db = getDb();
+    const agent = db.findById(req.params.id);
+    if (!agent) {
+      res.status(404).json({ error: "Agent not found" });
+      return;
+    }
+
+    db.upsert({ ...agent, lastSeenAt: new Date().toISOString(), status: 'online' });
+    res.status(204).send();
   });
 
   // DELETE /api/agents/:id
