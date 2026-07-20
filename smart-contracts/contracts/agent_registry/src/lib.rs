@@ -234,7 +234,7 @@ impl AgentRegistryContract {
             if let Some(r) = env
                 .storage()
                 .persistent()
-                .get::<DataKey, AgentRecord>(&agent_key)
+                .get::<AgentRecord>(&agent_key)
             {
                 records.push_back(r);
             }
@@ -349,13 +349,13 @@ mod test {
         // Check if the record is stored in storage directly
         let agent_key = DataKey::Agent(record.id.clone());
         let opt_record = env.as_contract(&client.address, || {
-            env.storage().persistent().get::<DataKey, AgentRecord>(&agent_key)
+            env.storage().persistent().get::<AgentRecord>(&agent_key)
         });
         assert!(opt_record.is_some(), "opt_record is None in storage!");
 
         let cap_key = DataKey::CapabilityIndex(record.capability.clone());
         let opt_ids = env.as_contract(&client.address, || {
-            env.storage().persistent().get::<DataKey, Vec<Symbol>>(&cap_key)
+            env.storage().persistent().get::<Vec<Symbol>>(&cap_key)
         });
         assert!(opt_ids.is_some(), "opt_ids is None in storage!");
         let ids = opt_ids.unwrap();
