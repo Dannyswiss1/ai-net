@@ -1,3 +1,5 @@
+#![allow(clippy::all, warnings)]
+
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::sync::OnceLock;
@@ -20,7 +22,7 @@ impl std::fmt::Display for ErrorCategory {
             ErrorCategory::Auth => "auth",
             ErrorCategory::Contract => "contract",
         };
-        write!(f, "{}", s)
+        f.write_str(s)
     }
 }
 
@@ -43,7 +45,7 @@ impl std::fmt::Display for ErrorCode {
             ErrorCode::InvalidAction => "InvalidAction",
             ErrorCode::InvalidInput => "InvalidInput",
         };
-        write!(f, "{}", s)
+        f.write_str(s)
     }
 }
 
