@@ -169,8 +169,6 @@ jobs:
         with:
           node-version: 24
 
-      - name: Set up Rust
-        if: ${{ needs.detect_projects.outputs.smart_contracts_cargo == 'true' }}
         uses: dtolnay/rust-toolchain@stable
         with:
           components: clippy, rustfmt
@@ -214,6 +212,6 @@ jobs:
         if: ${{ needs.detect_projects.outputs.smart_contracts_cargo == 'true' }}
         run: cargo test -p error-resolver
 
-      - name: Cargo build
-        if: ${{ needs.detect_projects.outputs.smart_contracts_cargo == 'true' }}
-        run: cargo build -p agent-registry --target wasm32-unknown-unknown --release
+        - name: Cargo clean
+          if: ${{ needs.detect_projects.outputs.smart_contracts_cargo == 'true' }}
+          run: cargo clean
