@@ -4,8 +4,12 @@ import { nanoid } from "nanoid";
 import { getTaskDb, createTaskDb } from "../../db/tasks";
 import { decompose } from "../../coordinator";
 import type { Task } from "../../types/task";
+import { executeDAG, type DispatchFn, type PaymentReleaseFn } from "../../coordinator/coordinator";
+import { createTask, getTask } from "../../coordinator/taskStore";
+import { createLogger } from "../../utils/logger";
 
-export const tasksRouter = Router();
+export function createTasksRouter(dispatch: DispatchFn, releasePayment: PaymentReleaseFn): Router {
+  const tasksRouter = Router();
 
 const CreateTaskSchema = z.object({
   prompt: z.string().min(1),
@@ -21,6 +25,55 @@ const TaskListSchema = z.object({
   q: z.string().optional(),
 });
 
+/**
+ * @openapi
+ * /api/tasks:
+ *   post:
+ *     summary: Create a new task
+ *     tags: [Tasks]
+ *     security:
+ *       - WalletAuth: []
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required: [prompt, maxBudgetXLM]
+ *             properties:
+ *               prompt:
+ *                 type: string
+ *                 minLength: 1
+ *               maxBudgetXLM:
+ *                 type: number
+ *                 minimum: 0.1
+ *               agentPreferences:
+ *                 type: array
+ *                 items:
+ *                   type: string
+ *     responses:
+ *       201:
+ *         description: Task created and queued
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 taskId:
+ *                   type: string
+ *                   example: task_ab12cd34ef56
+ *                 dagPreview:
+ *                   type: object
+ *                 status:
+ *                   type: string
+ *                   enum: [queued]
+ *       400:
+ *         description: Validation error
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/Error'
+ */
 // POST /api/tasks
 tasksRouter.post("/", (req: Request, res: Response): void => {
   const parse = CreateTaskSchema.safeParse(req.body);
@@ -32,24 +85,84 @@ tasksRouter.post("/", (req: Request, res: Response): void => {
   const { prompt } = parse.data;
   const walletPublicKey = (req.headers["walletpublickey"] as string) ?? "";
 
-  const dag = decompose(prompt);
+  const taskId = `task_${nanoid(12)}`;
+  const dag = decompose(taskId, prompt);
   const now = new Date().toISOString();
   const task: Task = {
-    id: `task_${nanoid(12)}`,
+    id: taskId,
     prompt,
     walletPublicKey,
     status: "queued",
-    dagJson: JSON.stringify(dag),
+    dag,
     createdAt: now,
     updatedAt: now,
   };
 
-  const db = createTaskDb(getTaskDb());
-  db.insert(task);
+  createTask(task);
+
+  const log = createLogger({ taskId });
+
+  // Run the DAG asynchronously — do not await
+  setImmediate(() => {
+    executeDAG(getTask(taskId)!, dispatch, releasePayment).catch((err) => {
+      log.error({ err }, "DAG execution error");
+    });
+  });
 
   res.status(201).json({ taskId: task.id, dagPreview: dag, status: "queued" });
 });
 
+/**
+ * @openapi
+ * /api/tasks:
+ *   get:
+ *     summary: List tasks
+ *     tags: [Tasks]
+ *     security:
+ *       - WalletAuth: []
+ *     parameters:
+ *       - in: query
+ *         name: page
+ *         schema: { type: integer, minimum: 1, default: 1 }
+ *       - in: query
+ *         name: pageSize
+ *         schema: { type: integer, minimum: 1, maximum: 100, default: 10 }
+ *       - in: query
+ *         name: status
+ *         schema:
+ *           type: string
+ *           enum: [queued, running, completed, failed, cancelled]
+ *       - in: query
+ *         name: sort
+ *         schema:
+ *           type: string
+ *           enum: [createdAt:desc, createdAt:asc]
+ *           default: createdAt:desc
+ *       - in: query
+ *         name: q
+ *         schema: { type: string }
+ *     responses:
+ *       200:
+ *         description: Paginated task list
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 tasks:
+ *                   type: array
+ *                   items:
+ *                     $ref: '#/components/schemas/Task'
+ *                 total: { type: integer }
+ *                 page: { type: integer }
+ *                 pageSize: { type: integer }
+ *       400:
+ *         description: Invalid query parameters
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/Error'
+ */
 // GET /api/tasks
 tasksRouter.get("/", (req: Request, res: Response): void => {
   const walletPublicKey = (req.headers["walletpublickey"] as string) ?? "";
@@ -67,9 +180,36 @@ tasksRouter.get("/", (req: Request, res: Response): void => {
     q: q && q.length > 0 ? q : undefined,
   });
 
-  res.json({ tasks: tasks.map(t => ({ ...t, dag: JSON.parse(t.dagJson) })), total, page, pageSize });
+  res.json({ tasks, total, page, pageSize });
 });
 
+/**
+ * @openapi
+ * /api/tasks/{id}:
+ *   get:
+ *     summary: Get a task by ID
+ *     tags: [Tasks]
+ *     security:
+ *       - WalletAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema: { type: string }
+ *     responses:
+ *       200:
+ *         description: Task found
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/Task'
+ *       404:
+ *         description: Task not found
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/Error'
+ */
 // GET /api/tasks/:id
 tasksRouter.get("/:id", (req: Request, res: Response): void => {
   const db = createTaskDb(getTaskDb());
@@ -78,9 +218,46 @@ tasksRouter.get("/:id", (req: Request, res: Response): void => {
     res.status(404).json({ error: "Task not found" });
     return;
   }
-  res.json({ ...task, dag: JSON.parse(task.dagJson) });
+  res.json(task);
 });
 
+/**
+ * @openapi
+ * /api/tasks/{id}:
+ *   delete:
+ *     summary: Cancel a task
+ *     description: Cancels a queued task. Returns 409 if the task is currently running.
+ *     tags: [Tasks]
+ *     security:
+ *       - WalletAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema: { type: string }
+ *     responses:
+ *       200:
+ *         description: Task cancelled
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 taskId: { type: string }
+ *                 status: { type: string, enum: [cancelled] }
+ *       404:
+ *         description: Task not found
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/Error'
+ *       409:
+ *         description: Cannot cancel a running task
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/Error'
+ */
 // DELETE /api/tasks/:id
 tasksRouter.delete("/:id", (req: Request, res: Response): void => {
   const db = createTaskDb(getTaskDb());
@@ -96,3 +273,6 @@ tasksRouter.delete("/:id", (req: Request, res: Response): void => {
   db.updateStatus(req.params.id, "cancelled");
   res.json({ taskId: req.params.id, status: "cancelled" });
 });
+
+  return tasksRouter;
+}
