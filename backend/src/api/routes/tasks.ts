@@ -8,6 +8,8 @@ import { executeDAG, type DispatchFn, type PaymentReleaseFn } from "../../coordi
 import { createTask, getTask } from "../../coordinator/taskStore";
 import { createLogger } from "../../utils/logger";
 
+const STELLAR_PUBLIC_KEY_REGEX = /^G[A-Z2-7]{55}$/;
+
 export function createTasksRouter(dispatch: DispatchFn, releasePayment: PaymentReleaseFn): Router {
   const tasksRouter = Router();
 
@@ -88,13 +90,15 @@ tasksRouter.post("/", (req: Request, res: Response): void => {
     return;
   }
 
+  const pubKey = req.headers["walletpublickey"] as string | undefined;
+
+  if (!pubKey || !STELLAR_PUBLIC_KEY_REGEX.test(pubKey)) {
+    res.status(400).json({ error: "Invalid Stellar public key format" });
+    return;
+  }
+
   const { prompt } = parse.data;
-  // Body first, then the header, then "anonymous" — the precedence the
-  // previous app.ts handler used.
-  const walletPublicKey =
-    parse.data.walletPublicKey ??
-    (req.headers["walletpublickey"] as string | undefined) ??
-    "anonymous";
+  const walletPublicKey = pubKey;
 
   const taskId = `task_${nanoid(12)}`;
   const dag = decompose(taskId, prompt);
