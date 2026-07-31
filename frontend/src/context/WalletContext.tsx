@@ -18,6 +18,7 @@ interface WalletContextType {
   publicKey: string | null
   keypair: Keypair | null
   connected: boolean
+  ready: boolean
   connectionMethod: ConnectionMethod | null
   freighterAvailable: boolean
   connect: (secretKey: string) => Promise<void>
@@ -40,6 +41,10 @@ export const WalletProvider: React.FC<{ children: React.ReactNode }> = ({ childr
   const [freighterAvailable, setFreighterAvailable] = useState(false)
 
   const connected = !!publicKey
+  // ready means the wallet can actually sign transactions:
+  // - Freighter: always ready when connected (Freighter handles signing)
+  // - Secret key: only ready when keypair is in memory (not serializable)
+  const ready = connected && (connectionMethod === 'freighter' || !!keypair)
 
   useEffect(() => {
     checkFreighterAvailable().then(setFreighterAvailable)
@@ -109,6 +114,7 @@ export const WalletProvider: React.FC<{ children: React.ReactNode }> = ({ childr
         publicKey,
         keypair,
         connected,
+        ready,
         connectionMethod,
         freighterAvailable,
         connect,
