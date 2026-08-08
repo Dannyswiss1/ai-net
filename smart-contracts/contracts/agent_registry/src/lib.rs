@@ -37,6 +37,12 @@ mod events;
 use soroban_sdk::{
     contract, contractimpl, contracttype, symbol_short, Address, BytesN, Env, String, Symbol, Vec,
 };
+use soroban_sdk::xdr::ToXdr;
+
+const MAX_AGENT_ID: u32 = 64;
+const MAX_METADATA_ENTRIES: u32 = 16;
+const MAX_METADATA_VALUE_SIZE: u32 = 256;
+const MAX_TOTAL_AGENT_STORAGE: u32 = 4096;
 
 // ─── Gas budget constants (empirical, CU / CPU instructions) ─────────────────
 // Stored as defaults in contract config; overridable via `set_gas_config`.
@@ -69,6 +75,7 @@ pub struct AgentRecord {
     pub price_stroops: i128,
     pub endpoint: String,
     pub owner: Address,
+    pub metadata: Map<Symbol, Val>,
 }
 
 /// Aggregate view of an agent's standing, including its error count as
@@ -409,6 +416,8 @@ impl AgentRegistryContract {
         require_not_frozen(&env, &record.id)?;
         record.owner.require_auth();
 
+        validate_record(&env, &record)?;
+
         let agent_key = DataKey::Agent(record.id.clone());
         if env.storage().persistent().has(&agent_key) {
             return Err(Error::AlreadyExists);
@@ -534,7 +543,7 @@ impl AgentRegistryContract {
             if let Some(r) = env
                 .storage()
                 .persistent()
-                .get::<DataKey, AgentRecord>(&agent_key)
+                .get::<AgentRecord>(&agent_key)
             {
                 ttl_keys.push_back(agent_key);
                 records.push_back(r);
@@ -813,6 +822,7 @@ mod test {
             price_stroops: 1_000,
             endpoint: String::from_str(env, "https://agent.example.com"),
             owner,
+            metadata: Map::new(env),
         }
     }
 
@@ -828,7 +838,33 @@ mod test {
     fn register_and_lookup() {
         let (env, client) = setup();
         let owner = Address::generate(&env);
-        client.register_agent(&make_record(&env, "agent1", "research", owner));
+        let record = make_record(&env, "agent1", "research", owner);
+        
+        let id_bytes = record.id.to_xdr(&env);
+        let record_bytes = record.to_xdr(&env);
+        
+        assert!(id_bytes.len() <= MAX_AGENT_ID + 4, "id_bytes.len() is {}", id_bytes.len());
+        assert!(record_bytes.len() <= MAX_TOTAL_AGENT_STORAGE, "record_bytes.len() is {}", record_bytes.len());
+
+        let reg_res = client.try_register_agent(&record);
+        assert!(reg_res.is_ok(), "try_register_agent returned Err: {:?}", reg_res);
+        let reg_inner = reg_res.unwrap();
+        assert!(reg_inner.is_ok(), "try_register_agent inner result is Err: {:?}", reg_inner);
+
+        // Check if the record is stored in storage directly
+        let agent_key = DataKey::Agent(record.id.clone());
+        let opt_record = env.as_contract(&client.address, || {
+            env.storage().persistent().get::<AgentRecord>(&agent_key)
+        });
+        assert!(opt_record.is_some(), "opt_record is None in storage!");
+
+        let cap_key = DataKey::CapabilityIndex(record.capability.clone());
+        let opt_ids = env.as_contract(&client.address, || {
+            env.storage().persistent().get::<Vec<Symbol>>(&cap_key)
+        });
+        assert!(opt_ids.is_some(), "opt_ids is None in storage!");
+        let ids = opt_ids.unwrap();
+        assert_eq!(ids.len(), 1, "ids.len() is {}", ids.len());
 
         let results = client.lookup_agents(&Symbol::new(&env, "research"));
         assert_eq!(results.len(), 1);
