@@ -18,7 +18,7 @@ const navItems = [
 ]
 
 const Navbar: React.FC = () => {
-  const { publicKey, connected, connectionMethod, disconnect } = useWallet()
+  const { publicKey, connected, ready, connectionMethod, disconnect } = useWallet()
   const navigate = useNavigate()
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false)
   const [mobileSearchOpen, setMobileSearchOpen] = useState(false)
@@ -147,7 +147,7 @@ const Navbar: React.FC = () => {
             <Search size={15} />
           </motion.button>
 
-          {connected && publicKey ? (
+          {connected && publicKey && ready ? (
             <div className="flex items-center gap-0.5 bg-background-surface/40 border border-border-subtle/60 rounded-md pl-2 pr-1 py-0.5">
               <span className="relative flex w-1.5 h-1.5">
                 <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-accent-green opacity-50" />

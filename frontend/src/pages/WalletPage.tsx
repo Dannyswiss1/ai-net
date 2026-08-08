@@ -11,7 +11,7 @@ import styles from './WalletPage.module.css'
 const STELLAR_EXPLORER = 'https://stellar.expert/explorer/testnet'
 
 function WalletPage() {
-  const { publicKey, connected, connectionMethod, freighterAvailable, connect, connectFreighter, disconnect } = useWallet()
+  const { publicKey, connected, ready, connectionMethod, freighterAvailable, connect, connectFreighter, disconnect } = useWallet()
   const { balance, loading: balanceLoading, error: balanceError } = useWalletBalance(publicKey)
   const { transactions, loading: txLoading, error: txError } = useTransactionHistory(publicKey)
   const [copied, setCopied] = React.useState(false)
@@ -159,6 +159,70 @@ function WalletPage() {
             >
               {connecting ? 'Connecting...' : 'Connect with Secret Key'}
             </button>
+          </form>
+        </div>
+      </div>
+    )
+  }
+
+  // Reconnect prompt: wallet was previously connected via secret key but
+  // keypair is lost after page refresh (Keypair is not JSON-serializable).
+  if (!ready && connectionMethod === 'secret-key') {
+    return (
+      <div className={styles.page}>
+        <div className={styles.header}>
+          <h1 className={styles.title}>
+            <Wallet size={24} />
+            Wallet
+          </h1>
+          <p className={styles.subtitle}>Re-enter your secret key to resume.</p>
+        </div>
+
+        <div className={styles.reconnectCard}>
+          <p className={styles.reconnectInfo}>
+            Your wallet was previously connected via{' '}
+            <strong>Secret Key</strong>. Since the key cannot be stored in the
+            browser, please re-enter it to continue.
+          </p>
+          {publicKey && (
+            <p className={styles.reconnectPubkey}>
+              Public Key: <code>{publicKey}</code>
+            </p>
+          )}
+          <form onSubmit={handleConnect}>
+            <label className={styles.fieldLabel} htmlFor="reconnect-secret-key">
+              Stellar Secret Key
+            </label>
+            <input
+              id="reconnect-secret-key"
+              className={styles.secretInput}
+              type="password"
+              placeholder="SABCD...5678"
+              value={secretInput}
+              onChange={(e) => setSecretInput(e.target.value)}
+              aria-describedby="reconnect-error"
+            />
+            {connectError && (
+              <p id="reconnect-error" className={styles.error} role="alert">
+                {connectError}
+              </p>
+            )}
+            <div className={styles.reconnectActions}>
+              <button
+                type="submit"
+                className={styles.connectButton}
+                disabled={connecting || !secretInput.trim()}
+              >
+                {connecting ? 'Connecting...' : 'Reconnect'}
+              </button>
+              <button
+                type="button"
+                className={styles.disconnectButton}
+                onClick={disconnect}
+              >
+                Disconnect
+              </button>
+            </div>
           </form>
         </div>
       </div>
