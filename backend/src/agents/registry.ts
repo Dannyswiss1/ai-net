@@ -55,6 +55,7 @@ export class AgentStartupRegistry {
       const registrations = this.agents.map(async ({ instance, capability }) => {
         try {
           await instance.register();
+          instance.startHeartbeat();
         } catch (error) {
           console.error(`[AgentRegistry] Failed to register ${capability} agent:`, error instanceof Error ? error.message : 'unknown');
         }
@@ -62,6 +63,19 @@ export class AgentStartupRegistry {
 
       await Promise.all(registrations);
       console.log(`[AgentRegistry] Registration complete. ${this.agents.length} agents initialized.`);
+    }
+  }
+
+  /**
+   * Stop heartbeats for all agents.
+   */
+  async shutdown(): Promise<void> {
+    for (const { instance } of this.agents) {
+      try {
+        instance.stopHeartbeat();
+      } catch {
+        // ignore shutdown errors
+      }
     }
   }
 

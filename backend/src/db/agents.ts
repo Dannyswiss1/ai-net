@@ -9,7 +9,7 @@ export interface AgentRecord {
   stellarPublicKey: string;
   reputationScore: number;
   lastSeenAt: string;
-  status?: string;
+  status: 'online' | 'offline';
 }
 
 let _agentDb: Database.Database | null = null;
@@ -27,7 +27,7 @@ export function getAgentDb(dbPath?: string): Database.Database {
         stellarPublicKey TEXT NOT NULL,
         reputationScore  REAL NOT NULL DEFAULT 0,
         lastSeenAt       TEXT NOT NULL,
-        status           TEXT NOT NULL DEFAULT 'offline'
+        status           TEXT NOT NULL DEFAULT 'online'
       )
     `);
     try {
@@ -47,7 +47,7 @@ export function closeAgentDb(): void {
 export interface AgentDb {
   upsert(agent: AgentRecord): void;
   findById(id: string): AgentRecord | undefined;
-  list(filters?: { capability?: string; minReputation?: number; maxPriceXLM?: number }): AgentRecord[];
+  list(filters?: { capability?: string; minReputation?: number; maxPriceXLM?: number; status?: string }): AgentRecord[];
   delete(id: string): void;
   updateReputation(id: string, delta: number): void;
   markAllOffline(): void;
@@ -86,7 +86,7 @@ export function createAgentDb(db: Database.Database): AgentDb {
       };
     },
 
-    list(filters?: { capability?: string; minReputation?: number; maxPriceXLM?: number }): AgentRecord[] {
+    list(filters?: { capability?: string; minReputation?: number; maxPriceXLM?: number; status?: string }): AgentRecord[] {
       let query = "SELECT * FROM agents WHERE 1=1";
       const params: any[] = [];
       
@@ -101,6 +101,10 @@ export function createAgentDb(db: Database.Database): AgentDb {
       if (filters?.capability !== undefined) {
         query += " AND EXISTS (SELECT 1 FROM json_each(capabilities) WHERE value = ?)";
         params.push(filters.capability);
+      }
+      if (filters?.status !== undefined) {
+        query += " AND status = ?";
+        params.push(filters.status);
       }
 
       const rows = db.prepare(query).all(...params) as any[];

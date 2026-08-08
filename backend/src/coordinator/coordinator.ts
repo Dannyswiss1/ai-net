@@ -378,7 +378,9 @@ export class Coordinator {
       throw new Error(`No agent registry configured for type: ${agentType}`);
     }
 
-    const agents = sortByCost(await this.agentRegistry.getAgents(agentType));
+    const agents = sortByCost(await this.agentRegistry.getAgents(agentType)).filter(
+      (agent) => agent.status === 'online'
+    );
     if (agents.length === 0) {
       throw new Error(`No agent registered for type: ${agentType}`);
     }
