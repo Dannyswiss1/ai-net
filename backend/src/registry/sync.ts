@@ -58,14 +58,15 @@ export function startAgentSync(): void {
             
             if (val && typeof val === "object" && val.id) {
                db.upsert({
-                id: val.id,
-                capabilities: Array.isArray(val.capabilities) ? val.capabilities : (val.capabilities ? [val.capabilities] : []),
-                pricingXLM: Number(val.pricingXLM) || 0,
-                endpoint: val.endpoint || "",
-                stellarPublicKey: val.stellarPublicKey || "",
-                reputationScore: Number(val.reputationScore) || 0,
-                lastSeenAt: new Date().toISOString()
-              });
+                 id: val.id,
+                 capabilities: Array.isArray(val.capabilities) ? val.capabilities : (val.capabilities ? [val.capabilities] : []),
+                 pricingXLM: Number(val.pricingXLM) || 0,
+                 endpoint: val.endpoint || "",
+                 stellarPublicKey: val.stellarPublicKey || "",
+                 reputationScore: Number(val.reputationScore) || 0,
+                 lastSeenAt: new Date().toISOString(),
+                 status: 'online'
+               });
             }
           }
         } catch (e) {
