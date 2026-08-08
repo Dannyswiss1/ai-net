@@ -50,7 +50,10 @@ export interface AgentDb {
   list(filters?: { capability?: string; minReputation?: number; maxPriceXLM?: number; status?: string }): AgentRecord[];
   delete(id: string): void;
   updateReputation(id: string, delta: number): void;
-  markOffline(olderThan: string): void;
+  markAllOffline(): void;
+  updateLastSeen(agentId: string): void;
+  markStaleAgents(staleThresholdMinutes?: number): number;
+  deleteOfflineAgents(offlineThresholdHours?: number): number;
 }
 
 export function createAgentDb(db: Database.Database): AgentDb {
@@ -120,8 +123,37 @@ export function createAgentDb(db: Database.Database): AgentDb {
       db.prepare("UPDATE agents SET reputationScore = reputationScore + ? WHERE id = ?").run(delta, id);
     },
 
-    markOffline(olderThan: string): void {
-      db.prepare("UPDATE agents SET status = 'offline' WHERE lastSeenAt < ? AND status = 'online'").run(olderThan);
+    markAllOffline(): void {
+      db.prepare("UPDATE agents SET status = 'offline' WHERE status = 'online'").run();
+    },
+
+    updateLastSeen(agentId: string): void {
+      db.prepare(`
+        UPDATE agents
+        SET lastSeenAt = datetime('now'),
+            status = 'online'
+        WHERE id = ?
+      `).run(agentId);
+    },
+
+    markStaleAgents(staleThresholdMinutes: number = 5): number {
+      const result = db.prepare(`
+        UPDATE agents
+        SET status = 'offline'
+        WHERE status = 'online'
+          AND datetime(lastSeenAt, '+' || ? || ' minutes') < datetime('now')
+      `).run(staleThresholdMinutes);
+      return result.changes;
+    },
+
+    deleteOfflineAgents(offlineThresholdHours: number = 24): number {
+      const result = db.prepare(`
+        DELETE FROM agents
+        WHERE status = 'offline'
+          AND datetime(lastSeenAt, '+' || ? || ' hours') < datetime('now')
+      `).run(offlineThresholdHours);
+      return result.changes;
     }
   };
 }
+
