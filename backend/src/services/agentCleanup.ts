@@ -39,10 +39,10 @@ export class AgentCleanupService {
     if (this.stopped) return;
 
     try {
-      const cutoff = new Date(Date.now() - this.ttlMs).toISOString();
+      const staleMinutes = Math.ceil(this.ttlMs / 60_000);
       const db = createAgentDb(getAgentDb());
-      db.markOffline(cutoff);
-      this.log.info({ cutoff }, 'marked stale agents offline');
+      const count = db.markStaleAgents(staleMinutes);
+      this.log.info({ count, staleMinutes }, 'marked stale agents offline');
     } catch (err) {
       this.log.error({ err }, 'cleanup tick failed');
     }

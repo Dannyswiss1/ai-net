@@ -15,6 +15,7 @@ const mockAgent: AgentRegistration = {
   type: 'research',
   endpoint: 'http://agent-research:4001',
   cost: 10,
+  status: 'online',
 };
 
 const mockNode: DAGNode = {

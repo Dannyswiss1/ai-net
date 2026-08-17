@@ -42,6 +42,14 @@
                     },
                     {
                       "key": {
+                        "symbol": "metadata"
+                      },
+                      "val": {
+                        "map": []
+                      }
+                    },
+                    {
+                      "key": {
                         "symbol": "owner"
                       },
                       "val": {
@@ -107,6 +115,14 @@
                         },
                         {
                           "key": {
+                            "symbol": "metadata"
+                          },
+                          "val": {
+                            "map": []
+                          }
+                        },
+                        {
+                          "key": {
                             "symbol": "owner"
                           },
                           "val": {
@@ -154,6 +170,14 @@
                         },
                         {
                           "key": {
+                            "symbol": "metadata"
+                          },
+                          "val": {
+                            "map": []
+                          }
+                        },
+                        {
+                          "key": {
                             "symbol": "owner"
                           },
                           "val": {
@@ -197,6 +221,14 @@
                           },
                           "val": {
                             "symbol": "new2"
+                          }
+                        },
+                        {
+                          "key": {
+                            "symbol": "metadata"
+                          },
+                          "val": {
+                            "map": []
                           }
                         },
                         {
@@ -266,6 +298,14 @@
                         },
                         {
                           "key": {
+                            "symbol": "metadata"
+                          },
+                          "val": {
+                            "map": []
+                          }
+                        },
+                        {
+                          "key": {
                             "symbol": "owner"
                           },
                           "val": {
@@ -313,6 +353,14 @@
                         },
                         {
                           "key": {
+                            "symbol": "metadata"
+                          },
+                          "val": {
+                            "map": []
+                          }
+                        },
+                        {
+                          "key": {
                             "symbol": "owner"
                           },
                           "val": {
@@ -356,6 +404,14 @@
                           },
                           "val": {
                             "symbol": "new2"
+                          }
+                        },
+                        {
+                          "key": {
+                            "symbol": "metadata"
+                          },
+                          "val": {
+                            "map": []
                           }
                         },
                         {
@@ -425,6 +481,14 @@
                         },
                         {
                           "key": {
+                            "symbol": "metadata"
+                          },
+                          "val": {
+                            "map": []
+                          }
+                        },
+                        {
+                          "key": {
                             "symbol": "owner"
                           },
                           "val": {
@@ -472,6 +536,14 @@
                         },
                         {
                           "key": {
+                            "symbol": "metadata"
+                          },
+                          "val": {
+                            "map": []
+                          }
+                        },
+                        {
+                          "key": {
                             "symbol": "owner"
                           },
                           "val": {
@@ -515,6 +587,14 @@
                           },
                           "val": {
                             "symbol": "new2"
+                          }
+                        },
+                        {
+                          "key": {
+                            "symbol": "metadata"
+                          },
+                          "val": {
+                            "map": []
                           }
                         },
                         {
@@ -619,6 +699,14 @@
                       },
                       "val": {
                         "symbol": "exists"
+                      }
+                    },
+                    {
+                      "key": {
+                        "symbol": "metadata"
+                      },
+                      "val": {
+                        "map": []
                       }
                     },
                     {

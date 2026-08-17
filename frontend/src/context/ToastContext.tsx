@@ -48,6 +48,7 @@ export function useToast() {
 }
 
 function ToastContainer({ toasts, onDismiss }: { toasts: Toast[]; onDismiss: (id: string) => void }) {
+  if (toasts.length === 0) return null;
   return (
     <div className="toast-container" role="alert" aria-live="polite">
       {toasts.map(toast => (

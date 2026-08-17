@@ -44,6 +44,14 @@
                         },
                         {
                           "key": {
+                            "symbol": "metadata"
+                          },
+                          "val": {
+                            "map": []
+                          }
+                        },
+                        {
+                          "key": {
                             "symbol": "owner"
                           },
                           "val": {
@@ -87,6 +95,14 @@
                           },
                           "val": {
                             "symbol": "same"
+                          }
+                        },
+                        {
+                          "key": {
+                            "symbol": "metadata"
+                          },
+                          "val": {
+                            "map": []
                           }
                         },
                         {
@@ -156,6 +172,14 @@
                         },
                         {
                           "key": {
+                            "symbol": "metadata"
+                          },
+                          "val": {
+                            "map": []
+                          }
+                        },
+                        {
+                          "key": {
                             "symbol": "owner"
                           },
                           "val": {
@@ -199,6 +223,14 @@
                           },
                           "val": {
                             "symbol": "same"
+                          }
+                        },
+                        {
+                          "key": {
+                            "symbol": "metadata"
+                          },
+                          "val": {
+                            "map": []
                           }
                         },
                         {

@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { VeniceClient, type AgentType } from '../../venice/index.js';
+import { VeniceClient, type AgentType, type VeniceClientLike } from '../../venice/index.js';
 import { HeartbeatClient } from '../heartbeat.js';
 
 export interface BaseAgentConfig {

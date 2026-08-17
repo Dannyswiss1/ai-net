@@ -35,13 +35,16 @@
 mod events;
 
 use soroban_sdk::{
-    contract, contractimpl, contracttype, symbol_short, Address, BytesN, Env, String, Symbol, Vec,
+    contract, contractimpl, contracttype, symbol_short, Address, BytesN, Env, Map, String, Symbol,
+    Val, Vec,
 };
-use soroban_sdk::xdr::ToXdr;
 
+#[allow(dead_code)]
 const MAX_AGENT_ID: u32 = 64;
 const MAX_METADATA_ENTRIES: u32 = 16;
+#[allow(dead_code)]
 const MAX_METADATA_VALUE_SIZE: u32 = 256;
+#[allow(dead_code)]
 const MAX_TOTAL_AGENT_STORAGE: u32 = 4096;
 
 // ─── Gas budget constants (empirical, CU / CPU instructions) ─────────────────
@@ -183,6 +186,7 @@ pub enum Error {
     NotAdmin = 6,
     AlreadyResolved = 7,
     DuplicateInBatch = 8,
+    InvalidRecord = 9,
 }
 
 impl From<Error> for soroban_sdk::Error {
@@ -202,6 +206,7 @@ impl From<soroban_sdk::Error> for Error {
             6 => Error::NotAdmin,
             7 => Error::AlreadyResolved,
             8 => Error::DuplicateInBatch,
+            9 => Error::InvalidRecord,
             _ => Error::NotFound,
         }
     }
@@ -221,6 +226,7 @@ impl Error {
             6 => Some(Error::NotAdmin),
             7 => Some(Error::AlreadyResolved),
             8 => Some(Error::DuplicateInBatch),
+            9 => Some(Error::InvalidRecord),
             _ => None,
         }
     }
@@ -332,6 +338,13 @@ fn require_not_frozen(env: &Env, agent_id: &Symbol) -> Result<(), Error> {
         .unwrap_or(false);
     if frozen {
         return Err(Error::AgentFrozen);
+    }
+    Ok(())
+}
+
+fn validate_record(_env: &Env, record: &AgentRecord) -> Result<(), Error> {
+    if record.metadata.len() > MAX_METADATA_ENTRIES {
+        return Err(Error::InvalidRecord);
     }
     Ok(())
 }
@@ -540,11 +553,7 @@ impl AgentRegistryContract {
         let mut ttl_keys: Vec<DataKey> = Vec::new(&env);
         for id in ids.iter() {
             let agent_key = DataKey::Agent(id.clone());
-            if let Some(r) = env
-                .storage()
-                .persistent()
-                .get::<AgentRecord>(&agent_key)
-            {
+            if let Some(r) = env.storage().persistent().get(&agent_key) {
                 ttl_keys.push_back(agent_key);
                 records.push_back(r);
             }
@@ -788,6 +797,7 @@ mod test {
     extern crate std;
 
     use super::*;
+    use soroban_sdk::xdr::ToXdr;
     use soroban_sdk::{testutils::Address as _, BytesN, Env};
 
     /// Creates a fresh in-memory test environment with the contract registered.
@@ -839,29 +849,44 @@ mod test {
         let (env, client) = setup();
         let owner = Address::generate(&env);
         let record = make_record(&env, "agent1", "research", owner);
-        
-        let id_bytes = record.id.to_xdr(&env);
-        let record_bytes = record.to_xdr(&env);
-        
-        assert!(id_bytes.len() <= MAX_AGENT_ID + 4, "id_bytes.len() is {}", id_bytes.len());
-        assert!(record_bytes.len() <= MAX_TOTAL_AGENT_STORAGE, "record_bytes.len() is {}", record_bytes.len());
+
+        let id_bytes = record.id.clone().to_xdr(&env);
+        let record_bytes = record.clone().to_xdr(&env);
+
+        assert!(
+            id_bytes.len() <= MAX_AGENT_ID + 4,
+            "id_bytes.len() is {}",
+            id_bytes.len()
+        );
+        assert!(
+            record_bytes.len() <= MAX_TOTAL_AGENT_STORAGE,
+            "record_bytes.len() is {}",
+            record_bytes.len()
+        );
 
         let reg_res = client.try_register_agent(&record);
-        assert!(reg_res.is_ok(), "try_register_agent returned Err: {:?}", reg_res);
+        assert!(
+            reg_res.is_ok(),
+            "try_register_agent returned Err: {:?}",
+            reg_res
+        );
         let reg_inner = reg_res.unwrap();
-        assert!(reg_inner.is_ok(), "try_register_agent inner result is Err: {:?}", reg_inner);
+        assert!(
+            reg_inner.is_ok(),
+            "try_register_agent inner result is Err: {:?}",
+            reg_inner
+        );
 
         // Check if the record is stored in storage directly
         let agent_key = DataKey::Agent(record.id.clone());
-        let opt_record = env.as_contract(&client.address, || {
-            env.storage().persistent().get::<AgentRecord>(&agent_key)
+        let opt_record: Option<AgentRecord> = env.as_contract(&client.address, || {
+            env.storage().persistent().get(&agent_key)
         });
         assert!(opt_record.is_some(), "opt_record is None in storage!");
 
         let cap_key = DataKey::CapabilityIndex(record.capability.clone());
-        let opt_ids = env.as_contract(&client.address, || {
-            env.storage().persistent().get::<Vec<Symbol>>(&cap_key)
-        });
+        let opt_ids: Option<Vec<Symbol>> =
+            env.as_contract(&client.address, || env.storage().persistent().get(&cap_key));
         assert!(opt_ids.is_some(), "opt_ids is None in storage!");
         let ids = opt_ids.unwrap();
         assert_eq!(ids.len(), 1, "ids.len() is {}", ids.len());

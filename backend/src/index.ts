@@ -9,6 +9,9 @@ import { initializeAgents, globalAgentRegistry } from "./agents";
 import { startAgentSync, stopAgentSync } from "./registry/sync";
 import { loadConfig, getConfig } from "./config";
 import { AgentCleanupService } from "./services/agentCleanup";
+import { createTaskDb, getTaskDb, closeTaskDb } from "./db/tasks";
+import { createAgentDb, getAgentDb, closeAgentDb } from "./db/agents";
+import { closeDb } from "./db/index";
 
 async function main() {
   // ── Validate env config at startup ──────────────────────────────────────────

@@ -330,7 +330,7 @@ describe('HTTP dispatch integration (mock agent server)', () => {
       // ── AgentRegistry backed by mock agent server ───────────────────────
       const agentRegistry = {
         getAgents: (agentType: string) => [
-          { id: `mock-${agentType}`, type: agentType, endpoint: agentEndpoint, cost: 1 },
+          { id: `mock-${agentType}`, type: agentType, endpoint: agentEndpoint, cost: 1, status: 'online' as const },
         ],
       };
 
@@ -440,7 +440,7 @@ describe('HTTP dispatch integration (mock agent server)', () => {
    */
   it('reports "No agent registered for type:<x>" when registry returns no agents', async () => {
     const emptyRegistry = {
-      getAgents: (_agentType: string) => [] as Array<{ id: string; type: string; endpoint: string; cost: number }>,
+      getAgents: (_agentType: string) => [] as Array<{ id: string; type: string; endpoint: string; cost: number; status: 'online' | 'offline' }>,
     };
 
     const { httpServer: srv, close } = createApp({
@@ -509,7 +509,7 @@ describe('HTTP dispatch — agent error handling', () => {
 
       const agentRegistry = {
         getAgents: (agentType: string) => [
-          { id: `failing-${agentType}`, type: agentType, endpoint: agentEndpoint, cost: 1 },
+          { id: `failing-${agentType}`, type: agentType, endpoint: agentEndpoint, cost: 1, status: 'online' as const },
         ],
       };
 
