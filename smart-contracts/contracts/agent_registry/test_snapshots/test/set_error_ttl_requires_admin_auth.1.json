@@ -14,67 +14,10 @@
           "function": {
             "contract_fn": {
               "contract_address": "CAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAD2KM",
-              "function_name": "set_gas_config",
+              "function_name": "set_error_ttl",
               "args": [
                 {
-                  "map": [
-                    {
-                      "key": {
-                        "symbol": "cleanup_error"
-                      },
-                      "val": {
-                        "u64": 8000
-                      }
-                    },
-                    {
-                      "key": {
-                        "symbol": "cleanup_error_marginal"
-                      },
-                      "val": {
-                        "u64": 4000
-                      }
-                    },
-                    {
-                      "key": {
-                        "symbol": "register_agent"
-                      },
-                      "val": {
-                        "u64": 50000
-                      }
-                    },
-                    {
-                      "key": {
-                        "symbol": "register_agent_marginal"
-                      },
-                      "val": {
-                        "u64": 20000
-                      }
-                    },
-                    {
-                      "key": {
-                        "symbol": "resolve_error"
-                      },
-                      "val": {
-                        "u64": 25000
-                      }
-                    },
-                    {
-                      "key": {
-                        "symbol": "resolve_error_marginal"
-                      },
-                      "val": {
-                        "u64": 15000
-                      }
-                    },
-                    {
-                      "key": {
-                        "symbol": "tx_overhead"
-                      },
-                      "val": {
-                        "u64": 10000
-                      }
-                    }
-                  ]
+                  "u64": 1000
                 }
               ]
             }
@@ -134,69 +77,12 @@
                         "key": {
                           "vec": [
                             {
-                              "symbol": "GasConfig"
+                              "symbol": "ErrorTTL"
                             }
                           ]
                         },
                         "val": {
-                          "map": [
-                            {
-                              "key": {
-                                "symbol": "cleanup_error"
-                              },
-                              "val": {
-                                "u64": 8000
-                              }
-                            },
-                            {
-                              "key": {
-                                "symbol": "cleanup_error_marginal"
-                              },
-                              "val": {
-                                "u64": 4000
-                              }
-                            },
-                            {
-                              "key": {
-                                "symbol": "register_agent"
-                              },
-                              "val": {
-                                "u64": 50000
-                              }
-                            },
-                            {
-                              "key": {
-                                "symbol": "register_agent_marginal"
-                              },
-                              "val": {
-                                "u64": 20000
-                              }
-                            },
-                            {
-                              "key": {
-                                "symbol": "resolve_error"
-                              },
-                              "val": {
-                                "u64": 25000
-                              }
-                            },
-                            {
-                              "key": {
-                                "symbol": "resolve_error_marginal"
-                              },
-                              "val": {
-                                "u64": 15000
-                              }
-                            },
-                            {
-                              "key": {
-                                "symbol": "tx_overhead"
-                              },
-                              "val": {
-                                "u64": 10000
-                              }
-                            }
-                          ]
+                          "u64": 1000
                         }
                       },
                       {
@@ -218,7 +104,7 @@
             },
             "ext": "v0"
           },
-          535680
+          4095
         ]
       ],
       [
@@ -272,7 +158,7 @@
             },
             "ext": "v0"
           },
-          535680
+          4095
         ]
       ]
     ]

@@ -16,13 +16,13 @@
               "function_name": "report_error",
               "args": [
                 {
-                  "bytes": "2800000000000000000000000000000000000000000000000000000000000000"
+                  "bytes": "5a00000000000000000000000000000000000000000000000000000000000000"
                 },
                 {
                   "address": "CAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAHK3M"
                 },
                 {
-                  "string": "some error"
+                  "string": "boom"
                 }
               ]
             }
@@ -31,41 +31,11 @@
         }
       ]
     ],
-    [],
-    [
-      [
-        "CAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAFCT4",
-        {
-          "function": {
-            "contract_fn": {
-              "contract_address": "CAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAD2KM",
-              "function_name": "resolve_errors",
-              "args": [
-                {
-                  "vec": [
-                    {
-                      "bytes": "2800000000000000000000000000000000000000000000000000000000000000"
-                    }
-                  ]
-                },
-                {
-                  "vec": [
-                    {
-                      "symbol": "Fixed"
-                    }
-                  ]
-                }
-              ]
-            }
-          },
-          "sub_invocations": []
-        }
-      ]
-    ]
+    []
   ],
   "ledger": {
     "protocol_version": 22,
-    "sequence_number": 0,
+    "sequence_number": 1000,
     "timestamp": 0,
     "network_id": "0000000000000000000000000000000000000000000000000000000000000000",
     "base_reserve": 0,
@@ -83,7 +53,7 @@
                   "symbol": "ErrorRecord"
                 },
                 {
-                  "bytes": "2800000000000000000000000000000000000000000000000000000000000000"
+                  "bytes": "5a00000000000000000000000000000000000000000000000000000000000000"
                 }
               ]
             },
@@ -103,7 +73,7 @@
                       "symbol": "ErrorRecord"
                     },
                     {
-                      "bytes": "2800000000000000000000000000000000000000000000000000000000000000"
+                      "bytes": "5a00000000000000000000000000000000000000000000000000000000000000"
                     }
                   ]
                 },
@@ -115,7 +85,7 @@
                         "symbol": "created_at"
                       },
                       "val": {
-                        "u64": 0
+                        "u64": 1000
                       }
                     },
                     {
@@ -123,7 +93,7 @@
                         "symbol": "expires_at"
                       },
                       "val": {
-                        "u64": 518400
+                        "u64": 519400
                       }
                     },
                     {
@@ -131,7 +101,7 @@
                         "symbol": "id"
                       },
                       "val": {
-                        "bytes": "2800000000000000000000000000000000000000000000000000000000000000"
+                        "bytes": "5a00000000000000000000000000000000000000000000000000000000000000"
                       }
                     },
                     {
@@ -139,7 +109,7 @@
                         "symbol": "message"
                       },
                       "val": {
-                        "string": "some error"
+                        "string": "boom"
                       }
                     },
                     {
@@ -167,7 +137,7 @@
                         "symbol": "resolved"
                       },
                       "val": {
-                        "bool": true
+                        "bool": false
                       }
                     }
                   ]
@@ -176,7 +146,7 @@
             },
             "ext": "v0"
           },
-          535680
+          536680
         ]
       ],
       [
@@ -239,39 +209,6 @@
       [
         {
           "contract_data": {
-            "contract": "CAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAFCT4",
-            "key": {
-              "ledger_key_nonce": {
-                "nonce": 5541220902715666415
-              }
-            },
-            "durability": "temporary"
-          }
-        },
-        [
-          {
-            "last_modified_ledger_seq": 0,
-            "data": {
-              "contract_data": {
-                "ext": "v0",
-                "contract": "CAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAFCT4",
-                "key": {
-                  "ledger_key_nonce": {
-                    "nonce": 5541220902715666415
-                  }
-                },
-                "durability": "temporary",
-                "val": "void"
-              }
-            },
-            "ext": "v0"
-          },
-          6311999
-        ]
-      ],
-      [
-        {
-          "contract_data": {
             "contract": "CAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAHK3M",
             "key": {
               "ledger_key_nonce": {
@@ -299,7 +236,7 @@
             },
             "ext": "v0"
           },
-          6311999
+          6312999
         ]
       ],
       [
