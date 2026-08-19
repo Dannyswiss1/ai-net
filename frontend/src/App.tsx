@@ -1,4 +1,4 @@
-﻿import React from 'react'
+import React from 'react'
 import { BrowserRouter as Router, Routes, Route } from 'react-router-dom'
 import { I18nextProvider } from 'react-i18next'
 import i18n from './i18n'
@@ -17,6 +17,7 @@ import DashboardPage from './pages/dashboard'
 import ErrorBoundary from './components/common/ErrorBoundary'
 import { CommandPalette } from './components/common/CommandPalette'
 import { useCommandPalette } from './hooks/useCommandPalette'
+import { ProtectedRoute } from './components/auth/ProtectedRoute'
 import './components/common/Toast.css'
 
 /**
@@ -45,13 +46,27 @@ const RoutedContent: React.FC = () => {
         <Route path="/*" element={
           <AppShell>
             <Routes>
-              <Route path="/dashboard" element={<DashboardPage />} />
-              <Route path="/wallet" element={<WalletPage />} />
-              <Route path="/agents" element={<AgentsPage />} />
-              <Route path="/tasks/new" element={<NewTaskPage />} />
-              <Route path="/tasks/history" element={<TaskHistoryPage />} />
-              <Route path="/tasks/:id" element={<TaskDetailPage />} />
-              <Route path="/renderer-demo" element={<RendererDemoPage />} />
+              <Route path="/dashboard" element={
+                <ProtectedRoute><DashboardPage /></ProtectedRoute>
+              } />
+              <Route path="/wallet" element={
+                <ProtectedRoute><WalletPage /></ProtectedRoute>
+              } />
+              <Route path="/agents" element={
+                <ProtectedRoute><AgentsPage /></ProtectedRoute>
+              } />
+              <Route path="/tasks/new" element={
+                <ProtectedRoute><NewTaskPage /></ProtectedRoute>
+              } />
+              <Route path="/tasks/history" element={
+                <ProtectedRoute><TaskHistoryPage /></ProtectedRoute>
+              } />
+              <Route path="/tasks/:id" element={
+                <ProtectedRoute><TaskDetailPage /></ProtectedRoute>
+              } />
+              {import.meta.env.DEV && (
+                <Route path="/renderer-demo" element={<RendererDemoPage />} />
+              )}
               <Route path="*" element={<NotFoundPage />} />
             </Routes>
           </AppShell>
