@@ -39,6 +39,16 @@ const envSchema = z.object({
   HEARTBEAT_STALE_THRESHOLD_MINUTES: z.coerce.number().int().positive().default(5),
   /** Hours an offline agent is kept before permanent cleanup. Default: 24. */
   AGENT_OFFLINE_DELETE_HOURS: z.coerce.number().int().positive().default(24),
+
+  // ── Venice response cache ──────────────────────────────────────────────────
+  /** Model version baked into the cache key; bumping it invalidates entries. Default: v1. */
+  VENICE_MODEL_VERSION: z.string().default("v1"),
+  /** Cache TTL (ms) for research/design/risk/report agents. Default: 86 400 000 (24h). */
+  VENICE_CACHE_TTL_MS: z.coerce.number().int().positive().default(24 * 60 * 60 * 1000),
+  /** Cache TTL (ms) for the coding agent (more volatile). Default: 3 600 000 (1h). */
+  VENICE_CACHE_CODING_TTL_MS: z.coerce.number().int().positive().default(60 * 60 * 1000),
+  /** Minimum similarity (0..1) for a fuzzy cache hit. Default: 0.8. */
+  VENICE_CACHE_SIMILARITY_THRESHOLD: z.coerce.number().min(0).max(1).default(0.8),
 });
 
 
