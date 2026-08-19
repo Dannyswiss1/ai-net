@@ -127,13 +127,14 @@ describe("Agents API route", () => {
     expect(response.body).toEqual({ error: "Agent not found" });
   });
 
-  it("returns 204 and updates lastSeenAt on heartbeat", async () => {
+  it("returns 200 and updates lastSeenAt on heartbeat", async () => {
     const app = createTestApp([codingAgent]);
     const before = new Date();
 
     const response = await request(app).post("/api/agents/coding-1/heartbeat");
 
-    expect(response.status).toBe(204);
+    expect(response.status).toBe(200);
+    expect(response.body.status).toBe("ok");
     const updated = await request(app).get("/api/agents/coding-1");
     expect(new Date(updated.body.lastSeenAt).getTime()).toBeGreaterThanOrEqual(before.getTime());
     expect(updated.body.status).toBe("online");
@@ -148,7 +149,7 @@ describe("Agents API route", () => {
 });
 
 describe("Stellar public key validation", () => {
-  const VALID_KEY = "GCEZWKCA5VLDNRLN3RPRJMRZOX3Z6G5CHCGDG6NXGPTVMLHK4HZ7HHN";
+  const VALID_KEY = "GCEZWKCA5VLDNRLN3RPRJMRZOX3Z6G5CHCGDG6NXGPTVMLHK4HZ7HHNN";
 
   beforeAll(() => {
     process.env.SKIP_STELLAR_ACCOUNT_VERIFY = "true";
