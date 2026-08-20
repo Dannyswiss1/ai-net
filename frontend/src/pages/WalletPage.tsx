@@ -6,12 +6,13 @@ import { useWalletBalance } from '../hooks/useWalletBalance'
 import { useTransactionHistory } from '../hooks/useTransactionHistory'
 import { SendXLMForm } from '../components/wallet/SendXLMForm'
 import { TransactionTable } from '../components/wallet/TransactionTable'
+import { WalletWizard } from '../components/wallet/WalletWizard'
 import styles from './WalletPage.module.css'
 
 const STELLAR_EXPLORER = 'https://stellar.expert/explorer/testnet'
 
 function WalletPage() {
-  const { publicKey, connected, ready, connectionMethod, freighterAvailable, connect, connectFreighter, disconnect } = useWallet()
+  const { publicKey, connected, ready, connectionMethod, freighterAvailable, connect, connectFreighter, disconnect, hasCompletedWizard } = useWallet()
   const { balance, loading: balanceLoading, error: balanceError } = useWalletBalance(publicKey)
   const { transactions, loading: txLoading, error: txError } = useTransactionHistory(publicKey)
   const [copied, setCopied] = React.useState(false)
@@ -82,6 +83,14 @@ function WalletPage() {
       </span>
     )
   }, [balance, balanceLoading, balanceError])
+
+  if (!hasCompletedWizard) {
+    return (
+      <div className={styles.page}>
+        <WalletWizard />
+      </div>
+    )
+  }
 
   if (!connected || !publicKey) {
     return (
