@@ -735,10 +735,7 @@ impl AgentRegistryContract {
         // alerting pipelines without polling contract state.
         env.events().publish(
             (symbol_short!("registry"), symbol_short!("err_rptd")),
-            ErrorReportedEvent {
-                error_id,
-                reporter,
-            },
+            ErrorReportedEvent { error_id, reporter },
         );
 
         Ok(())
@@ -1551,7 +1548,12 @@ mod test {
 
     fn assert_event_topics(env: &Env, idx: u32, topic0: Symbol, topic1: Symbol) {
         let events = env.events().all();
-        assert!(idx < events.len(), "event index {} out of range (total {})", idx, events.len());
+        assert!(
+            idx < events.len(),
+            "event index {} out of range (total {})",
+            idx,
+            events.len()
+        );
         let (_, topics, _) = events.get(idx).unwrap();
         let t0 = Symbol::from_val(env, &topics.get(0).unwrap());
         let t1 = Symbol::from_val(env, &topics.get(1).unwrap());
@@ -1579,7 +1581,12 @@ mod test {
         client.set_admin(&new_admin);
         // events() reflects set_admin call only
         assert_eq!(env.events().all().len(), 1, "set_admin must emit 1 event");
-        assert_event_topics(&env, 0, symbol_short!("registry"), symbol_short!("adm_chngd"));
+        assert_event_topics(
+            &env,
+            0,
+            symbol_short!("registry"),
+            symbol_short!("adm_chngd"),
+        );
     }
 
     #[test]
@@ -1587,37 +1594,75 @@ mod test {
         let (env, client) = setup();
         let owner = Address::generate(&env);
         client.register_agent(&make_record(&env, "ev_agent1", "research", owner));
-        assert_eq!(env.events().all().len(), 1, "register_agent must emit 1 event");
-        assert_event_topics(&env, 0, symbol_short!("registry"), symbol_short!("agent_reg"));
+        assert_eq!(
+            env.events().all().len(),
+            1,
+            "register_agent must emit 1 event"
+        );
+        assert_event_topics(
+            &env,
+            0,
+            symbol_short!("registry"),
+            symbol_short!("agent_reg"),
+        );
     }
 
     #[test]
     fn register_agents_batch_emits_one_event_per_agent() {
         let (env, client) = setup();
         let mut agents = Vec::new(&env);
-        agents.push_back(make_record(&env, "bev1", "research", Address::generate(&env)));
-        agents.push_back(make_record(&env, "bev2", "coding",   Address::generate(&env)));
-        agents.push_back(make_record(&env, "bev3", "report",   Address::generate(&env)));
+        agents.push_back(make_record(
+            &env,
+            "bev1",
+            "research",
+            Address::generate(&env),
+        ));
+        agents.push_back(make_record(&env, "bev2", "coding", Address::generate(&env)));
+        agents.push_back(make_record(&env, "bev3", "report", Address::generate(&env)));
         let results = client.register_agents(&agents);
         assert!(results.iter().all(|r| matches!(r, BatchResult::Ok(_))));
         // events() reflects this register_agents call: 1 per committed agent
         assert_eq!(env.events().all().len(), 3, "batch of 3 must emit 3 events");
         for i in 0..3u32 {
-            assert_event_topics(&env, i, symbol_short!("registry"), symbol_short!("agent_reg"));
+            assert_event_topics(
+                &env,
+                i,
+                symbol_short!("registry"),
+                symbol_short!("agent_reg"),
+            );
         }
     }
 
     #[test]
     fn register_agents_failed_batch_emits_no_events() {
         let (env, client) = setup();
-        client.register_agent(&make_record(&env, "conflict", "research", Address::generate(&env)));
+        client.register_agent(&make_record(
+            &env,
+            "conflict",
+            "research",
+            Address::generate(&env),
+        ));
         // failed batch: conflicting id forces atomic abort
         let mut agents = Vec::new(&env);
-        agents.push_back(make_record(&env, "new_ok",   "coding",   Address::generate(&env)));
-        agents.push_back(make_record(&env, "conflict", "research", Address::generate(&env)));
+        agents.push_back(make_record(
+            &env,
+            "new_ok",
+            "coding",
+            Address::generate(&env),
+        ));
+        agents.push_back(make_record(
+            &env,
+            "conflict",
+            "research",
+            Address::generate(&env),
+        ));
         client.register_agents(&agents);
         // events() reflects this call — aborted, so zero
-        assert_eq!(env.events().all().len(), 0, "failed batch must emit 0 events");
+        assert_eq!(
+            env.events().all().len(),
+            0,
+            "failed batch must emit 0 events"
+        );
     }
 
     #[test]
@@ -1627,8 +1672,17 @@ mod test {
         client.register_agent(&make_record(&env, "dreg_ev", "analytics", owner));
         client.deregister_agent(&Symbol::new(&env, "dreg_ev"));
         // events() reflects deregister_agent call only
-        assert_eq!(env.events().all().len(), 1, "deregister_agent must emit 1 event");
-        assert_event_topics(&env, 0, symbol_short!("registry"), symbol_short!("agent_drg"));
+        assert_eq!(
+            env.events().all().len(),
+            1,
+            "deregister_agent must emit 1 event"
+        );
+        assert_event_topics(
+            &env,
+            0,
+            symbol_short!("registry"),
+            symbol_short!("agent_drg"),
+        );
     }
 
     #[test]
@@ -1637,8 +1691,17 @@ mod test {
         let reporter = Address::generate(&env);
         let eid = error_id(&env, 77);
         client.report_error(&eid, &reporter, &String::from_str(&env, "disk full"));
-        assert_eq!(env.events().all().len(), 1, "report_error must emit 1 event");
-        assert_event_topics(&env, 0, symbol_short!("registry"), symbol_short!("err_rptd"));
+        assert_eq!(
+            env.events().all().len(),
+            1,
+            "report_error must emit 1 event"
+        );
+        assert_event_topics(
+            &env,
+            0,
+            symbol_short!("registry"),
+            symbol_short!("err_rptd"),
+        );
     }
 
     #[test]
@@ -1652,13 +1715,24 @@ mod test {
         client.report_error(&id2, &reporter, &String::from_str(&env, "t2"));
         client.report_error(&id3, &reporter, &String::from_str(&env, "t3"));
         let mut ids = Vec::new(&env);
-        ids.push_back(id1); ids.push_back(id2); ids.push_back(id3);
+        ids.push_back(id1);
+        ids.push_back(id2);
+        ids.push_back(id3);
         let results = client.resolve_errors(&ids, &Resolution::Fixed);
         assert!(results.iter().all(|r| r == VoidBatchResult::Ok));
         // events() reflects resolve_errors call: 1 per resolved error
-        assert_eq!(env.events().all().len(), 3, "resolve_errors must emit 3 events");
+        assert_eq!(
+            env.events().all().len(),
+            3,
+            "resolve_errors must emit 3 events"
+        );
         for i in 0..3u32 {
-            assert_event_topics(&env, i, symbol_short!("registry"), symbol_short!("err_rslvd"));
+            assert_event_topics(
+                &env,
+                i,
+                symbol_short!("registry"),
+                symbol_short!("err_rslvd"),
+            );
         }
     }
 
@@ -1666,15 +1740,23 @@ mod test {
     fn resolve_errors_failed_batch_emits_no_events() {
         let (env, client, _) = setup_with_admin();
         let reporter = Address::generate(&env);
-        let id1    = error_id(&env, 60);
+        let id1 = error_id(&env, 60);
         let missing = error_id(&env, 99);
         client.report_error(&id1, &reporter, &String::from_str(&env, "real"));
         let mut ids = Vec::new(&env);
-        ids.push_back(id1); ids.push_back(missing);
+        ids.push_back(id1);
+        ids.push_back(missing);
         let results = client.resolve_errors(&ids, &Resolution::Ignored);
-        assert_eq!(results.get(1).unwrap(), VoidBatchResult::Err(Error::NotFound as u32));
+        assert_eq!(
+            results.get(1).unwrap(),
+            VoidBatchResult::Err(Error::NotFound as u32)
+        );
         // events() reflects this call — aborted, zero events
-        assert_eq!(env.events().all().len(), 0, "aborted resolve_errors must emit 0 events");
+        assert_eq!(
+            env.events().all().len(),
+            0,
+            "aborted resolve_errors must emit 0 events"
+        );
     }
 
     #[test]
@@ -1687,6 +1769,11 @@ mod test {
         ids.push_back(id1);
         client.resolve_errors(&ids, &Resolution::Escalated);
         assert_eq!(env.events().all().len(), 1, "must emit 1 err_rslvd event");
-        assert_event_topics(&env, 0, symbol_short!("registry"), symbol_short!("err_rslvd"));
+        assert_event_topics(
+            &env,
+            0,
+            symbol_short!("registry"),
+            symbol_short!("err_rslvd"),
+        );
     }
 }
