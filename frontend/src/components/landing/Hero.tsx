@@ -2,6 +2,9 @@ import React from 'react'
 import { useNavigate } from 'react-router-dom'
 import { motion } from 'framer-motion'
 import { Sparkles, ArrowRight } from 'lucide-react'
+import { useTypingAnimation } from '../../hooks/useTypingAnimation'
+import { useParticles } from '../../hooks/useParticles'
+import styles from './Hero.module.css'
 
 const containerVariants = {
   hidden: { opacity: 0 },
@@ -18,14 +21,22 @@ const itemVariants = {
 
 const Hero: React.FC = () => {
   const navigate = useNavigate()
+  const typedText = useTypingAnimation()
+  const { canvasRef, prefersReducedMotion } = useParticles()
 
   return (
     <motion.section
-      className="flex flex-col items-center text-center pt-24 pb-20 px-4 max-w-4xl mx-auto"
+      className={`flex flex-col items-center text-center pt-24 pb-20 px-4 max-w-4xl mx-auto ${styles.heroContainer}`}
       variants={containerVariants}
       initial="hidden"
       animate="visible"
     >
+      {!prefersReducedMotion ? (
+        <canvas ref={canvasRef} className={styles.particleCanvas} />
+      ) : (
+        <div className={styles.staticGradient} />
+      )}
+
       {/* Centered Logo Mark */}
       <motion.div
         className="w-[72px] h-[72px] rounded-2xl bg-background-surface border border-border-subtle flex items-center justify-center mb-8 shadow-xl relative overflow-hidden"
@@ -51,10 +62,11 @@ const Hero: React.FC = () => {
         className="text-[48px] sm:text-[56px] font-bold text-text-primary tracking-tight leading-[1.1] mb-6"
         variants={itemVariants}
       >
-        AI agents that <br />
+        AI agents for <br />
         <span className="bg-clip-text text-transparent bg-gradient-primary">
-          hire & pay each other
+          {typedText || '\u00A0'}
         </span>
+        <span className={styles.typewriterCursor}></span>
       </motion.h1>
 
       {/* Subtext */}
