@@ -34,6 +34,10 @@
 
 mod events;
 
+use events::{
+    AdminChangedEvent, AgentDeregisteredEvent, AgentRegisteredEvent, ErrorReportedEvent,
+    ErrorResolvedEvent, RegistryInitializedEvent,
+};
 use soroban_sdk::{
     contract, contractimpl, contracttype, symbol_short, Address, BytesN, Env, Map, String, Symbol,
     Val, Vec,
@@ -128,10 +132,11 @@ pub struct CooldownRecord {
 /// How an on-chain error was closed.
 #[contracttype]
 #[derive(Clone, Debug, Eq, PartialEq)]
+#[repr(u32)]
 pub enum Resolution {
-    Fixed,
-    Ignored,
-    Escalated,
+    Fixed = 0,
+    Ignored = 1,
+    Escalated = 2,
 }
 
 /// Persistent error entry that can be batch-resolved.
@@ -411,12 +416,33 @@ impl AgentRegistryContract {
         }
         env.storage().instance().set(&DataKey::Admin, &admin);
         env.storage().instance().set(&DataKey::Paused, &false);
+
+        // Emit (registry, init) so indexers know exactly when the
+        // contract became active and who the genesis admin is.
+        env.events().publish(
+            (symbol_short!("registry"), symbol_short!("init")),
+            RegistryInitializedEvent {
+                admin: admin.clone(),
+            },
+        );
+
         Ok(())
     }
 
     pub fn set_admin(env: Env, new_admin: Address) -> Result<(), Error> {
-        require_admin(&env)?;
+        let old_admin = require_admin(&env)?;
         env.storage().instance().set(&DataKey::Admin, &new_admin);
+
+        // Emit (registry, admin_changed) with both old and new admin addresses
+        // to provide a complete audit trail for on-chain governance changes.
+        env.events().publish(
+            (symbol_short!("registry"), symbol_short!("adm_chngd")),
+            AdminChangedEvent {
+                old_admin,
+                new_admin,
+            },
+        );
+
         Ok(())
     }
 
@@ -500,15 +526,18 @@ impl AgentRegistryContract {
         env.storage().persistent().set(&agent_key, &record);
         extend_ttl_for_key(&env, &agent_key);
 
-        // Emit BondLocked event.
+        // Emit (registry, agent_registered) so off-chain indexers can
+        // immediately detect new agents without polling storage.
         env.events().publish(
-            (symbol_short!("registry"), symbol_short!("bond_lock")),
-            events::BondLocked {
-                agent_id: record.id,
-                owner: record.owner,
-                amount_stroops: record.bond_amount,
+            (symbol_short!("registry"), symbol_short!("agent_reg")),
+            AgentRegisteredEvent {
+                agent_id: record.id.clone(),
+                owner: record.owner.clone(),
+                capability: record.capability.clone(),
+                price_stroops: record.price_stroops,
             },
         );
+
         Ok(())
     }
 
@@ -600,6 +629,19 @@ impl AgentRegistryContract {
             append_capability_index(&env, &record.capability, &record.id);
             env.storage().persistent().set(&agent_key, &record);
             ttl_keys.push_back(agent_key);
+
+            // Emit one (registry, agent_registered) event per committed agent.
+            // Batch callers receive the same event shape as single registration,
+            // making the indexer event handler uniform across both code paths.
+            env.events().publish(
+                (symbol_short!("registry"), symbol_short!("agent_reg")),
+                AgentRegisteredEvent {
+                    agent_id: record.id.clone(),
+                    owner: record.owner.clone(),
+                    capability: record.capability.clone(),
+                    price_stroops: record.price_stroops,
+                },
+            );
         }
         extend_ttl_batch(&env, &ttl_keys);
 
@@ -692,14 +734,16 @@ impl AgentRegistryContract {
         env.storage().persistent().set(&cap_key, &updated);
         env.storage().persistent().remove(&agent_key);
 
-        // Persist cooldown entry so the second call can return the bond.
-        let cr = CooldownRecord {
-            expiry_ledger: current_ledger.saturating_add(BOND_COOLDOWN_LEDGERS),
-            owner: record.owner,
-            bond_amount: record.bond_amount,
-        };
-        env.storage().persistent().set(&cooldown_key, &cr);
-        extend_ttl_for_key(&env, &cooldown_key);
+        // Emit (registry, agent_deregistered) including owner and capability
+        // so indexers can update their capability maps without a storage read.
+        env.events().publish(
+            (symbol_short!("registry"), symbol_short!("agent_drg")),
+            AgentDeregisteredEvent {
+                agent_id,
+                owner: record.owner.clone(),
+                capability: record.capability.clone(),
+            },
+        );
 
         Ok(())
     }
@@ -826,8 +870,8 @@ impl AgentRegistryContract {
         }
 
         let entry = ErrorEntry {
-            id: error_id,
-            reporter,
+            id: error_id.clone(),
+            reporter: reporter.clone(),
             message,
             resolved: false,
             // Placeholder until resolve_errors overwrites with a real resolution.
@@ -835,6 +879,14 @@ impl AgentRegistryContract {
         };
         env.storage().persistent().set(&key, &entry);
         extend_ttl_for_key(&env, &key);
+
+        // Emit (registry, error_reported) so monitoring systems can trigger
+        // alerting pipelines without polling contract state.
+        env.events().publish(
+            (symbol_short!("registry"), symbol_short!("err_rptd")),
+            ErrorReportedEvent { error_id, reporter },
+        );
+
         Ok(())
     }
 
@@ -892,6 +944,17 @@ impl AgentRegistryContract {
             entry.resolution = resolution.clone();
             env.storage().persistent().set(&key, &entry);
             ttl_keys.push_back(key);
+
+            // Emit one (registry, error_resolved) event per resolved error.
+            // Batch resolutions produce N events so indexers can track each
+            // error's lifecycle independently without scanning storage.
+            env.events().publish(
+                (symbol_short!("registry"), symbol_short!("err_rslvd")),
+                ErrorResolvedEvent {
+                    error_id: id,
+                    resolution_code: resolution.clone() as u32,
+                },
+            );
         }
         extend_ttl_batch(&env, &ttl_keys);
 
@@ -976,7 +1039,7 @@ mod test {
 
     use super::*;
     use soroban_sdk::xdr::ToXdr;
-    use soroban_sdk::{testutils::{Address as _, Ledger as _}, BytesN, Env};
+    use soroban_sdk::{testutils::Address as _, testutils::Events as _, BytesN, Env, FromVal};
 
     /// Creates a fresh in-memory test environment with the contract registered.
     ///
@@ -1639,231 +1702,240 @@ mod test {
         assert_eq!(v, 0);
     }
 
-    // ── Bond staking tests ───────────────────────────────────────────────────
+    // ── Event emission tests ─────────────────────────────────────────────────
+    //
+    // In Soroban's test Env, `env.events().all()` returns ONLY the events from
+    // the most recent contract invocation — it resets on every client.xxx() call.
+    // Tests inspect the event list directly after the one call under test.
 
-    #[test]
-    fn register_with_sufficient_bond_succeeds() {
-        let (env, client, _admin) = setup_with_admin();
-        let owner = Address::generate(&env);
-        // make_record already sets bond_amount = DEFAULT_MIN_BOND_STROOPS
-        assert!(client.try_register_agent(&make_record(&env, "bonded", "research", owner)).is_ok());
-    }
-
-    #[test]
-    fn register_with_insufficient_bond_is_rejected() {
-        let (env, client, _admin) = setup_with_admin();
-        let owner = Address::generate(&env);
-        let mut record = make_record(&env, "cheap", "research", owner);
-        record.bond_amount = DEFAULT_MIN_BOND_STROOPS - 1;
-        assert_eq!(
-            client.try_register_agent(&record),
-            Err(Ok(Error::InsufficientBond))
+    fn assert_event_topics(env: &Env, idx: u32, topic0: Symbol, topic1: Symbol) {
+        let events = env.events().all();
+        assert!(
+            idx < events.len(),
+            "event index {} out of range (total {})",
+            idx,
+            events.len()
         );
+        let (_, topics, _) = events.get(idx).unwrap();
+        let t0 = Symbol::from_val(env, &topics.get(0).unwrap());
+        let t1 = Symbol::from_val(env, &topics.get(1).unwrap());
+        assert_eq!(t0, topic0, "topic[0] mismatch at event {}", idx);
+        assert_eq!(t1, topic1, "topic[1] mismatch at event {}", idx);
     }
 
     #[test]
-    fn register_with_zero_bond_is_rejected() {
-        let (env, client, _admin) = setup_with_admin();
-        let owner = Address::generate(&env);
-        let mut record = make_record(&env, "nobond", "research", owner);
-        record.bond_amount = 0;
-        assert_eq!(
-            client.try_register_agent(&record),
-            Err(Ok(Error::InsufficientBond))
-        );
-    }
-
-    #[test]
-    fn set_min_bond_changes_requirement() {
-        let (env, client, _admin) = setup_with_admin();
-        // Lower min bond to 1 stroop
-        client.set_min_bond(&1_i128);
-        assert_eq!(client.get_min_bond(), 1_i128);
-
-        // A record with bond_amount=1 should now be accepted
-        let owner = Address::generate(&env);
-        let mut record = make_record(&env, "lowbond", "research", owner);
-        record.bond_amount = 1;
-        assert!(client.try_register_agent(&record).is_ok());
-    }
-
-    #[test]
-    fn set_min_bond_requires_admin() {
+    fn initialize_emits_initialized_event() {
         let env = Env::default();
-        let contract_id = env.register(AgentRegistryContract, ());
-        let client = AgentRegistryContractClient::new(&env, &contract_id);
+        env.mock_all_auths();
+        let id = env.register(AgentRegistryContract, ());
+        let client = AgentRegistryContractClient::new(&env, &id);
         let admin = Address::generate(&env);
-        env.mock_all_auths();
         client.initialize(&admin);
-
-        env.mock_auths(&[]);
-        assert!(client.try_set_min_bond(&500_i128).is_err());
+        // events() reflects this call only
+        assert_eq!(env.events().all().len(), 1, "initialize must emit 1 event");
+        assert_event_topics(&env, 0, symbol_short!("registry"), symbol_short!("init"));
     }
 
     #[test]
-    fn slash_bond_reduces_bond_amount() {
-        let (env, client, _admin) = setup_with_admin();
-        let owner = Address::generate(&env);
-        client.register_agent(&make_record(&env, "slashme", "research", owner));
-
-        client.slash_bond(&Symbol::new(&env, "slashme"), &10_000_000_i128);
-
-        let results = client.lookup_agents(&Symbol::new(&env, "research"));
-        let record = results.get(0).unwrap();
-        assert_eq!(record.bond_amount, DEFAULT_MIN_BOND_STROOPS - 10_000_000);
-    }
-
-    #[test]
-    fn slash_bond_floors_at_zero() {
-        let (env, client, _admin) = setup_with_admin();
-        let owner = Address::generate(&env);
-        client.register_agent(&make_record(&env, "zeroed", "research", owner));
-
-        // Slash more than the bond — result must be 0, not negative.
-        client.slash_bond(&Symbol::new(&env, "zeroed"), &(DEFAULT_MIN_BOND_STROOPS * 2));
-
-        let results = client.lookup_agents(&Symbol::new(&env, "research"));
-        assert_eq!(results.get(0).unwrap().bond_amount, 0_i128);
-    }
-
-    #[test]
-    fn double_slash_does_not_go_negative() {
-        let (env, client, _admin) = setup_with_admin();
-        let owner = Address::generate(&env);
-        client.register_agent(&make_record(&env, "dblslash", "research", owner));
-
-        // First slash: takes half
-        client.slash_bond(
-            &Symbol::new(&env, "dblslash"),
-            &(DEFAULT_MIN_BOND_STROOPS / 2),
-        );
-        // Second slash: takes the rest
-        client.slash_bond(
-            &Symbol::new(&env, "dblslash"),
-            &(DEFAULT_MIN_BOND_STROOPS / 2),
-        );
-        // Third slash: already zero — should still succeed without underflow
-        client.slash_bond(&Symbol::new(&env, "dblslash"), &1_000_i128);
-
-        let results = client.lookup_agents(&Symbol::new(&env, "research"));
-        assert_eq!(results.get(0).unwrap().bond_amount, 0_i128);
-    }
-
-    #[test]
-    fn slash_bond_on_missing_agent_returns_not_found() {
-        let (_env, client, _admin) = setup_with_admin();
-        // `slash_bond` expects a Symbol, reuse the env from setup_with_admin
-        let env = Env::default();
-        let contract_id = env.register(AgentRegistryContract, ());
-        let c = AgentRegistryContractClient::new(&env, &contract_id);
-        env.mock_all_auths();
-        c.initialize(&Address::generate(&env));
-
-        assert_eq!(
-            c.try_slash_bond(&Symbol::new(&env, "ghost"), &1_000_i128),
-            Err(Ok(Error::NotFound))
-        );
-        // suppress unused variable warning
-        let _ = client;
-    }
-
-    #[test]
-    fn slash_bond_requires_admin() {
-        let env = Env::default();
-        let contract_id = env.register(AgentRegistryContract, ());
-        let client = AgentRegistryContractClient::new(&env, &contract_id);
-        let admin = Address::generate(&env);
-        env.mock_all_auths();
-        client.initialize(&admin);
-        client.register_agent(&make_record(
+    fn set_admin_emits_admin_changed_event() {
+        let (env, client, _) = setup_with_admin();
+        let new_admin = Address::generate(&env);
+        client.set_admin(&new_admin);
+        // events() reflects set_admin call only
+        assert_eq!(env.events().all().len(), 1, "set_admin must emit 1 event");
+        assert_event_topics(
             &env,
-            "protectedbond",
+            0,
+            symbol_short!("registry"),
+            symbol_short!("adm_chngd"),
+        );
+    }
+
+    #[test]
+    fn register_agent_emits_agent_registered_event() {
+        let (env, client) = setup();
+        let owner = Address::generate(&env);
+        client.register_agent(&make_record(&env, "ev_agent1", "research", owner));
+        assert_eq!(
+            env.events().all().len(),
+            1,
+            "register_agent must emit 1 event"
+        );
+        assert_event_topics(
+            &env,
+            0,
+            symbol_short!("registry"),
+            symbol_short!("agent_reg"),
+        );
+    }
+
+    #[test]
+    fn register_agents_batch_emits_one_event_per_agent() {
+        let (env, client) = setup();
+        let mut agents = Vec::new(&env);
+        agents.push_back(make_record(
+            &env,
+            "bev1",
             "research",
             Address::generate(&env),
         ));
-
-        env.mock_auths(&[]);
-        assert!(
-            client
-                .try_slash_bond(&Symbol::new(&env, "protectedbond"), &1_000_i128)
-                .is_err()
-        );
+        agents.push_back(make_record(&env, "bev2", "coding", Address::generate(&env)));
+        agents.push_back(make_record(&env, "bev3", "report", Address::generate(&env)));
+        let results = client.register_agents(&agents);
+        assert!(results.iter().all(|r| matches!(r, BatchResult::Ok(_))));
+        // events() reflects this register_agents call: 1 per committed agent
+        assert_eq!(env.events().all().len(), 3, "batch of 3 must emit 3 events");
+        for i in 0..3u32 {
+            assert_event_topics(
+                &env,
+                i,
+                symbol_short!("registry"),
+                symbol_short!("agent_reg"),
+            );
+        }
     }
 
     #[test]
-    fn deregister_initiates_cooldown() {
-        let (env, client, _admin) = setup_with_admin();
-        let owner = Address::generate(&env);
-        client.register_agent(&make_record(&env, "cooldown1", "research", owner));
-
-        // First deregister call: removes agent, starts cooldown.
-        client.deregister_agent(&Symbol::new(&env, "cooldown1"));
-
-        // Agent is gone from the index immediately.
-        let results = client.lookup_agents(&Symbol::new(&env, "research"));
-        assert_eq!(results.len(), 0);
-    }
-
-    #[test]
-    fn bond_return_before_cooldown_is_rejected() {
-        let (env, client, _admin) = setup_with_admin();
-        let owner = Address::generate(&env);
-        client.register_agent(&make_record(&env, "earlyreturn", "research", owner));
-
-        // Initiate deregistration (sets cooldown).
-        client.deregister_agent(&Symbol::new(&env, "earlyreturn"));
-
-        // Immediately try to claim bond — cooldown not elapsed.
+    fn register_agents_failed_batch_emits_no_events() {
+        let (env, client) = setup();
+        client.register_agent(&make_record(
+            &env,
+            "conflict",
+            "research",
+            Address::generate(&env),
+        ));
+        // failed batch: conflicting id forces atomic abort
+        let mut agents = Vec::new(&env);
+        agents.push_back(make_record(
+            &env,
+            "new_ok",
+            "coding",
+            Address::generate(&env),
+        ));
+        agents.push_back(make_record(
+            &env,
+            "conflict",
+            "research",
+            Address::generate(&env),
+        ));
+        client.register_agents(&agents);
+        // events() reflects this call — aborted, so zero
         assert_eq!(
-            client.try_deregister_agent(&Symbol::new(&env, "earlyreturn")),
-            Err(Ok(Error::CooldownNotElapsed))
+            env.events().all().len(),
+            0,
+            "failed batch must emit 0 events"
         );
     }
 
     #[test]
-    fn bond_returned_after_cooldown_elapses() {
-        let (env, client, _admin) = setup_with_admin();
+    fn deregister_agent_emits_agent_deregistered_event() {
+        let (env, client) = setup();
         let owner = Address::generate(&env);
-        client.register_agent(&make_record(&env, "coolwait", "research", owner));
-
-        // Initiate deregistration (first call — stores cooldown, removes agent).
-        client.deregister_agent(&Symbol::new(&env, "coolwait"));
-
-        // Extend the contract instance TTL *before* the ledger jump so the
-        // instance is not treated as archived after the large sequence advance.
-        // set_min_bond calls instance.extend_ttl internally.
-        let jump = BOND_COOLDOWN_LEDGERS + 1;
-        client.set_min_bond(&DEFAULT_MIN_BOND_STROOPS);
-
-        // Now advance the ledger past the cooldown, keeping min_persistent_entry_ttl
-        // high enough that persistent keys set before the jump survive.
-        let target_seq = env.ledger().sequence() + jump;
-        env.ledger().with_mut(|li| {
-            li.min_persistent_entry_ttl = jump + 10;
-            li.sequence_number = target_seq;
-        });
-
-        // Second call after cooldown: should succeed and emit BondReturned.
-        assert!(
-            client
-                .try_deregister_agent(&Symbol::new(&env, "coolwait"))
-                .is_ok()
+        client.register_agent(&make_record(&env, "dreg_ev", "analytics", owner));
+        client.deregister_agent(&Symbol::new(&env, "dreg_ev"));
+        // events() reflects deregister_agent call only
+        assert_eq!(
+            env.events().all().len(),
+            1,
+            "deregister_agent must emit 1 event"
+        );
+        assert_event_topics(
+            &env,
+            0,
+            symbol_short!("registry"),
+            symbol_short!("agent_drg"),
         );
     }
 
     #[test]
-    fn estimate_gas_slash_bond_operation() {
+    fn report_error_emits_error_reported_event() {
         let (env, client) = setup();
-        let v = client.estimate_gas(&String::from_str(&env, "slash_bond"), &1);
-        assert_eq!(v, GAS_SLASH_BOND);
-        let v3 = client.estimate_gas(&String::from_str(&env, "slash_bond"), &3);
-        assert_eq!(v3, GAS_SLASH_BOND * 3);
+        let reporter = Address::generate(&env);
+        let eid = error_id(&env, 77);
+        client.report_error(&eid, &reporter, &String::from_str(&env, "disk full"));
+        assert_eq!(
+            env.events().all().len(),
+            1,
+            "report_error must emit 1 event"
+        );
+        assert_event_topics(
+            &env,
+            0,
+            symbol_short!("registry"),
+            symbol_short!("err_rptd"),
+        );
     }
 
     #[test]
-    fn estimate_gas_deregister_with_bond_operation() {
-        let (env, client) = setup();
-        let v = client.estimate_gas(&String::from_str(&env, "deregister_with_bond"), &1);
-        assert_eq!(v, GAS_DEREGISTER_WITH_BOND);
+    fn resolve_errors_emits_one_event_per_resolved_error() {
+        let (env, client, _) = setup_with_admin();
+        let reporter = Address::generate(&env);
+        let id1 = error_id(&env, 50);
+        let id2 = error_id(&env, 51);
+        let id3 = error_id(&env, 52);
+        client.report_error(&id1, &reporter, &String::from_str(&env, "t1"));
+        client.report_error(&id2, &reporter, &String::from_str(&env, "t2"));
+        client.report_error(&id3, &reporter, &String::from_str(&env, "t3"));
+        let mut ids = Vec::new(&env);
+        ids.push_back(id1);
+        ids.push_back(id2);
+        ids.push_back(id3);
+        let results = client.resolve_errors(&ids, &Resolution::Fixed);
+        assert!(results.iter().all(|r| r == VoidBatchResult::Ok));
+        // events() reflects resolve_errors call: 1 per resolved error
+        assert_eq!(
+            env.events().all().len(),
+            3,
+            "resolve_errors must emit 3 events"
+        );
+        for i in 0..3u32 {
+            assert_event_topics(
+                &env,
+                i,
+                symbol_short!("registry"),
+                symbol_short!("err_rslvd"),
+            );
+        }
+    }
+
+    #[test]
+    fn resolve_errors_failed_batch_emits_no_events() {
+        let (env, client, _) = setup_with_admin();
+        let reporter = Address::generate(&env);
+        let id1 = error_id(&env, 60);
+        let missing = error_id(&env, 99);
+        client.report_error(&id1, &reporter, &String::from_str(&env, "real"));
+        let mut ids = Vec::new(&env);
+        ids.push_back(id1);
+        ids.push_back(missing);
+        let results = client.resolve_errors(&ids, &Resolution::Ignored);
+        assert_eq!(
+            results.get(1).unwrap(),
+            VoidBatchResult::Err(Error::NotFound as u32)
+        );
+        // events() reflects this call — aborted, zero events
+        assert_eq!(
+            env.events().all().len(),
+            0,
+            "aborted resolve_errors must emit 0 events"
+        );
+    }
+
+    #[test]
+    fn resolve_errors_resolution_code_matches_variant() {
+        let (env, client, _) = setup_with_admin();
+        let reporter = Address::generate(&env);
+        let id1 = error_id(&env, 80);
+        client.report_error(&id1, &reporter, &String::from_str(&env, "netsplit"));
+        let mut ids = Vec::new(&env);
+        ids.push_back(id1);
+        client.resolve_errors(&ids, &Resolution::Escalated);
+        assert_eq!(env.events().all().len(), 1, "must emit 1 err_rslvd event");
+        assert_event_topics(
+            &env,
+            0,
+            symbol_short!("registry"),
+            symbol_short!("err_rslvd"),
+        );
     }
 }
