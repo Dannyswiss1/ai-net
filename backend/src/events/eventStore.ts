@@ -79,6 +79,16 @@ export interface EventStore {
    */
   listByType(type: string, options?: TimeRangeOptions): StoredEvent[];
 
+  /**
+   * Return the highest `taskSeq` stored for every taskId that has at least one
+   * event.  Used by the EventBus on startup to rehydrate its per-task sequence
+   * counters so that post-restart events continue from where the previous run
+   * left off rather than resetting to 0 and hitting the UNIQUE constraint.
+   *
+   * Returns a Map keyed by taskId, value = max taskSeq stored for that task.
+   */
+  maxTaskSeqPerTask(): Map<string, number>;
+
   /** Release the underlying database connection. */
   close(): void;
 }
@@ -207,6 +217,12 @@ export function createEventStore(db?: Database.Database | string): EventStore {
     ORDER BY occurred_at ASC
   `);
 
+  const maxTaskSeqStmt = database.prepare(`
+    SELECT task_id, MAX(task_seq) AS max_seq
+    FROM task_events
+    GROUP BY task_id
+  `);
+
   // ---------------------------------------------------------------------------
   // Store implementation
   // ---------------------------------------------------------------------------
@@ -260,6 +276,15 @@ export function createEventStore(db?: Database.Database | string): EventStore {
         );
       }
       return (listByTypeStmt.all(type) as EventRow[]).map(rowToStoredEvent);
+    },
+
+    maxTaskSeqPerTask(): Map<string, number> {
+      const rows = maxTaskSeqStmt.all() as Array<{ task_id: string; max_seq: number }>;
+      const result = new Map<string, number>();
+      for (const { task_id, max_seq } of rows) {
+        result.set(task_id, max_seq);
+      }
+      return result;
     },
 
     close(): void {

@@ -108,6 +108,24 @@ class EventBus extends EventEmitter {
     this.store = options.store ?? createEventStore();
     this.setMaxListeners(options.maxListeners ?? 100);
 
+    // ── Rehydrate seq counters from the DB ──────────────────────────────────
+    // On restart the in-memory Map is empty, so the first event for any
+    // in-progress task would be stamped seq=0 — colliding with the
+    // UNIQUE(task_id, task_seq) constraint and getting silently swallowed.
+    // Seed each counter from the highest task_seq already stored so that
+    // post-restart events continue from where the previous run left off.
+    try {
+      const maxSeqs = this.store.maxTaskSeqPerTask();
+      for (const [taskId, maxSeq] of maxSeqs) {
+        // next seq to assign = max already stored + 1
+        this.nextSeqByTask.set(taskId, maxSeq + 1);
+      }
+    } catch (err) {
+      // Surface rehydration errors — a silent failure here means duplicate
+      // seq=0 events after restart, which is worse than a startup warning.
+      console.error('[eventBus] failed to rehydrate taskSeq counters from DB:', err);
+    }
+
     // Wire the persistence recorder: every event is persisted BEFORE per-task
     // subscribers see it so the DB row exists during their handlers.
     this.on(EventBus.ALL, (event: DAGEvent) => {

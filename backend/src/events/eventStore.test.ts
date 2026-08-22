@@ -385,6 +385,24 @@ describe('replayTask', () => {
     expect(node.paymentTxHash).toBe('0xabc123');
   });
 
+  it('captures PaymentLocked fields (balanceId, amountStroops, paymentLockedAt)', () => {
+    const taskId = 'replay-locked';
+    const lockedAt = '2026-08-22T10:00:00.000Z';
+    const events = [
+      withSeq(makeTaskCreated(taskId, { prompt: 'p', walletPublicKey: 'G', dagSize: 1 }), 0),
+      withSeq(makeNodeStarted(taskId, 'n1', { agentType: 'research' }), 1),
+      { ...makePaymentLocked(taskId, 'n1', { balanceId: 'BAL-XYZ', amountStroops: 10_000_000 }), taskSeq: 2, occurredAt: lockedAt },
+    ];
+    const state = replayTask(events)!;
+
+    const node = state.nodes.get('n1')!;
+    expect(node.balanceId).toBe('BAL-XYZ');
+    expect(node.amountStroops).toBe(10_000_000);
+    expect(node.paymentLockedAt).toBe(lockedAt);
+    // paymentTxHash not yet set — PaymentReleased hasn't been applied
+    expect(node.paymentTxHash).toBeUndefined();
+  });
+
   it('advances lastTaskSeq and eventCount correctly', () => {
     const events = buildTaskEvents('replay-counts');
     const state = replayTask(events)!;

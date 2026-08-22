@@ -25,6 +25,7 @@ import {
   isNodeCompleted,
   isNodeFailed,
   isNodeStarted,
+  isPaymentLocked,
   isPaymentReleased,
   isTaskCompleted,
   isTaskCreated,
@@ -59,6 +60,12 @@ export interface ReplayedNode {
   startedAt?: string;
   /** ISO-8601 timestamp of the NodeCompleted or NodeFailed event. */
   settledAt?: string;
+  /** ISO-8601 timestamp of the PaymentLocked event. */
+  paymentLockedAt?: string;
+  /** Stellar claimable-balance ID from the PaymentLocked event. */
+  balanceId?: string;
+  /** Locked amount in stroops from the PaymentLocked event. */
+  amountStroops?: number;
   /** Stellar transaction hash from the matching PaymentReleased event. */
   paymentTxHash?: string;
 }
@@ -138,6 +145,14 @@ function applyEvent(state: ReplayedTaskState, event: AppEvent): void {
     node.status = 'failed';
     node.error = p.error;
     node.settledAt = event.occurredAt;
+    return;
+  }
+
+  if (isPaymentLocked(event)) {
+    const node = ensureNode(state, event.nodeId);
+    node.paymentLockedAt = event.occurredAt;
+    node.balanceId = event.payload.balanceId;
+    node.amountStroops = event.payload.amountStroops;
     return;
   }
 

@@ -5,9 +5,11 @@
 -- (AUTOINCREMENT) provides a globally-ordered cursor across all tasks, while
 -- `task_seq` provides a per-task cursor for stream resume (?lastEventId).
 --
+-- NOTE: This DDL uses SQLite syntax (AUTOINCREMENT, TEXT for ISO-8601 dates).
+-- It is not compatible with PostgreSQL or other databases without adaptation.
+--
 -- Apply with:
 --   better-sqlite3: db.exec(fs.readFileSync('backend/src/db/events.sql', 'utf8'))
---   psql:           psql "$DATABASE_URL" -f backend/src/db/events.sql
 
 CREATE TABLE IF NOT EXISTS task_events (
   -- Globally unique, monotonically-increasing row identifier.
