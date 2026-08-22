@@ -184,7 +184,9 @@ jobs:
         uses: dtolnay/rust-toolchain@stable
         with:
           components: clippy, rustfmt
-          targets: wasm32-unknown-unknown
+          # The Soroban contracts build for this target (see "Cargo build"
+          # below); installing the target is what makes `cargo build` work.
+          targets: wasm32v1-none
 
       - name: Cache Cargo dependencies
         if: ${{ needs.detect_projects.outputs.smart_contracts_cargo == 'true' }}
