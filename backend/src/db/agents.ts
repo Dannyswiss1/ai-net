@@ -54,6 +54,19 @@ export interface AgentDb {
   updateLastSeen(agentId: string): void;
   markStaleAgents(staleThresholdMinutes?: number): number;
   deleteOfflineAgents(offlineThresholdHours?: number): number;
+  // Optional on-chain event handlers used by registry/sync.ts. Not every
+  // AgentDb implementation mirrors contract state, so call sites use `?.`.
+  remove?(id: string): void;
+  setFrozen?(agentId: string, frozen: boolean): void;
+  updatePricing?(agentId: string, pricingXLM: number): void;
+  upsertError?(error: {
+    id: string;
+    reporter: string;
+    resolved: boolean;
+    resolution: string | null;
+    reportedAt: string;
+  }): void;
+  resolveError?(errorId: string, resolution: string): void;
 }
 
 export function createAgentDb(db: Database.Database): AgentDb {
