@@ -21,7 +21,7 @@ permissions:
 
 jobs:
   backend:
-    name: Backend (build + test)
+    name: backend
     runs-on: ubuntu-latest
     timeout-minutes: 15
     defaults:
@@ -48,7 +48,7 @@ jobs:
         run: npm test
 
   frontend:
-    name: Frontend (build + test)
+    name: frontend
     runs-on: ubuntu-latest
     timeout-minutes: 15
     defaults:
@@ -75,7 +75,7 @@ jobs:
         run: npm test
 
   contracts:
-    name: Smart Contracts (Rust + TypeScript)
+    name: smart-contracts
     runs-on: ubuntu-latest
     timeout-minutes: 25
     defaults:
@@ -139,7 +139,7 @@ jobs:
           ls -la target/wasm32v1-none/release/*.wasm
 
   e2e-fullstack:
-    name: Fullstack E2E (non-blocking)
+    name: e2e-fullstack
     continue-on-error: true
     runs-on: ubuntu-latest
     timeout-minutes: 15
@@ -169,7 +169,7 @@ jobs:
           VENICE_API_KEY: ${{ secrets.VENICE_API_KEY }}
 
   contracts-integration:
-    name: Contracts Integration (main, non-blocking)
+    name: contracts-integration
     continue-on-error: true
     needs: contracts
     if: github.ref == 'refs/heads/main' || github.event_name == 'workflow_dispatch'
