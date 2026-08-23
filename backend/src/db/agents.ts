@@ -141,12 +141,16 @@ export function createAgentDb(db: Database.Database): AgentDb {
     },
 
     updateLastSeen(agentId: string): void {
+      // Store an ISO-8601 UTC timestamp (same format upsert uses). The raw
+      // SQLite `datetime('now')` output lacks a timezone designator and gets
+      // parsed as *local* time by JS `new Date()`, shifting timestamps by the
+      // machine's UTC offset.
       db.prepare(`
         UPDATE agents
-        SET lastSeenAt = datetime('now'),
+        SET lastSeenAt = ?,
             status = 'online'
         WHERE id = ?
-      `).run(agentId);
+      `).run(new Date().toISOString(), agentId);
     },
 
     markStaleAgents(staleThresholdMinutes: number = 5): number {
