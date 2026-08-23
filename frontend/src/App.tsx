@@ -1,5 +1,7 @@
 import React from 'react'
 import { BrowserRouter as Router, Routes, Route } from 'react-router-dom'
+import { I18nextProvider } from 'react-i18next'
+import i18n from './i18n'
 import { WalletProvider } from './context/WalletContext'
 import { ToastProvider } from './context/ToastContext'
 import { NotFoundPage } from './pages/NotFoundPage';
@@ -40,13 +42,15 @@ const AppContent: React.FC = () => {
 
 const App: React.FC = () => {
   return (
-    <ErrorBoundary>
-      <WalletProvider>
-        <ToastProvider>
-          <AppContent />
-        </ToastProvider>
-      </WalletProvider>
-    </ErrorBoundary>
+    <I18nextProvider i18n={i18n}>
+      <ErrorBoundary>
+        <WalletProvider>
+          <ToastProvider>
+            <AppContent />
+          </ToastProvider>
+        </WalletProvider>
+      </ErrorBoundary>
+    </I18nextProvider>
   )
 }
 

@@ -1,5 +1,6 @@
 // src/pages/dashboard.tsx
 import React from 'react';
+import { useTranslation } from 'react-i18next';
 import { useWallet } from '../hooks/useWallet';
 import { useNetworkStats } from '../hooks/useNetworkStats';
 import { useToast } from '../context/ToastContext';
@@ -13,13 +14,16 @@ export const DashboardPage: React.FC = () => {
   const { address } = useWallet();
   const { data, loading, error } = useNetworkStats();
   const { showToast } = useToast();
+  const { t, i18n } = useTranslation();
 
   // Show error toast when network stats fetch fails
   React.useEffect(() => {
     if (error) {
-      showToast(`Failed to load network stats: ${error}`, 'error');
+      // i18n.t so the toast uses the current language without re-running the
+      // effect on every language change.
+      showToast(i18n.t('page.dashboard.statsError', { error }), 'error');
     }
-  }, [error, showToast]);
+  }, [error, showToast, i18n]);
 
   // Redirect unauthenticated users
   React.useEffect(() => {
@@ -42,16 +46,16 @@ export const DashboardPage: React.FC = () => {
   return (
     <DashboardLayout>
       <section className={styles.kpis}>
-        <KpiCard title="Total Agents" value={kpiData.totalAgents} sparklineData={sparkline} loading={loading} />
-        <KpiCard title="Total Tasks Run" value={kpiData.totalTasks} sparklineData={sparkline} loading={loading} />
-        <KpiCard title="Total XLM Transacted" value={kpiData.totalXLMTransacted} sparklineData={sparkline} loading={loading} />
-        <KpiCard title="Network Uptime" value={`${kpiData.uptimePercent.toFixed(2)}%`} sparklineData={sparkline} loading={loading} />
+        <KpiCard title={t('page.dashboard.totalAgents')} value={kpiData.totalAgents} sparklineData={sparkline} loading={loading} />
+        <KpiCard title={t('page.dashboard.totalTasks')} value={kpiData.totalTasks} sparklineData={sparkline} loading={loading} />
+        <KpiCard title={t('page.dashboard.totalXLM')} value={kpiData.totalXLMTransacted} sparklineData={sparkline} loading={loading} />
+        <KpiCard title={t('page.dashboard.uptime')} value={`${kpiData.uptimePercent.toFixed(2)}%`} sparklineData={sparkline} loading={loading} />
       </section>
       <section className={styles.health}>
         <NetworkHealthBadge uptimePercent={kpiData.uptimePercent} />
       </section>
       <section className={styles.recentTasks}>
-        <h2 className={styles.heading}>Recent Tasks</h2>
+        <h2 className={styles.heading}>{t('page.dashboard.recentTasks')}</h2>
         <RecentTasksTable walletAddress={address} loading={loading} />
       </section>
     </DashboardLayout>

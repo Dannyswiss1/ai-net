@@ -1,4 +1,5 @@
 import React, { useState, useMemo } from 'react';
+import { useTranslation, Trans } from 'react-i18next';
 import { useParams } from 'react-router-dom';
 import ReactFlow, { Background, Controls, Handle, Position, MarkerType, Node, Edge } from 'reactflow';
 import 'reactflow/dist/style.css';
@@ -8,12 +9,14 @@ import { PaymentTimeline } from '../components/dashboard/PaymentTimeline';
 import { AlertCircle, CheckCircle2, Loader2, Play, RefreshCw } from 'lucide-react';
 
 const CustomNode: React.FC<{ id: string; data: { label: string; status: string } }> = ({ id, data }) => {
+  const { t } = useTranslation();
+
   return (
     <div id={id} className={`dag-node ${data.status} h-full flex flex-col justify-between`}>
       <Handle type="target" position={Position.Left} style={{ background: '#64748b', width: 8, height: 8 }} />
       <div>
         <div className="text-[10px] uppercase font-extrabold tracking-wider opacity-60 mb-0.5">
-          Agent Node
+          {t('page.task.agentNode')}
         </div>
         <div className="text-sm font-bold truncate capitalize">{data.label}</div>
       </div>
@@ -30,6 +33,7 @@ const nodeTypes = {
 };
 
 const TaskDetailPage: React.FC = () => {
+  const { t } = useTranslation();
   const { id } = useParams<{ id: string }>();
   const { task, loading, error, wsStatus, nodes, payments, outputs, refetch } = useTaskMonitor(id);
   const [selectedNodeId, setSelectedNodeId] = useState<string | null>(null);
@@ -132,7 +136,7 @@ const TaskDetailPage: React.FC = () => {
     return (
       <div className="flex flex-col items-center justify-center min-h-[400px]">
         <Loader2 className="animate-spin text-indigo-500 mb-4" size={40} />
-        <p className="text-slate-400">Loading live task execution status...</p>
+        <p className="text-slate-400">{t('page.task.loading')}</p>
       </div>
     );
   }
@@ -141,11 +145,11 @@ const TaskDetailPage: React.FC = () => {
     return (
       <div className="glass-panel border-rose-500/30 text-center py-12">
         <AlertCircle className="text-rose-500 mx-auto mb-4" size={48} />
-        <h2 className="text-xl font-bold text-slate-100 mb-2">Error Loading Task</h2>
+        <h2 className="text-xl font-bold text-slate-100 mb-2">{t('page.task.errorTitle')}</h2>
         <p className="text-rose-300/80 mb-6">{error.message}</p>
         <button onClick={refetch} className="flex items-center gap-2 mx-auto">
           <RefreshCw size={16} />
-          <span>Retry</span>
+          <span>{t('common.retry')}</span>
         </button>
       </div>
     );
@@ -159,14 +163,14 @@ const TaskDetailPage: React.FC = () => {
           bg: 'rgba(16, 185, 129, 0.15)',
           border: 'rgba(16, 185, 129, 0.3)',
           color: '#a7f3d0',
-          label: 'connected',
+          label: t('page.task.ws.connected'),
         };
       case 'connecting':
         return {
           bg: 'rgba(245, 158, 11, 0.15)',
           border: 'rgba(245, 158, 11, 0.3)',
           color: '#fde68a',
-          label: 'connecting',
+          label: t('page.task.ws.connecting'),
         };
       case 'error':
       case 'disconnected':
@@ -175,7 +179,7 @@ const TaskDetailPage: React.FC = () => {
           bg: 'rgba(239, 68, 68, 0.15)',
           border: 'rgba(239, 68, 68, 0.3)',
           color: '#fca5a5',
-          label: 'disconnected',
+          label: t('page.task.ws.disconnected'),
         };
     }
   };
@@ -189,9 +193,16 @@ const TaskDetailPage: React.FC = () => {
         <div className="p-4 bg-rose-950/60 border border-rose-500/50 rounded-xl flex items-start gap-3 text-rose-200 animate-fadeIn" role="alert">
           <AlertCircle className="text-rose-400 mt-0.5 shrink-0" size={20} />
           <div>
-            <h4 className="font-bold text-sm">Task Execution Failed</h4>
+            <h4 className="font-bold text-sm">{t('page.task.failedTitle')}</h4>
             <p className="text-xs text-rose-300 mt-0.5">
-              Node <span className="font-mono font-bold capitalize">{failedNode.nodeId.replace('node_', '').replace('node-', '')}</span> failed: {failedNode.error || 'Unknown execution error'}
+              <Trans
+                i18nKey="page.task.failedBody"
+                values={{
+                  node: failedNode.nodeId.replace('node_', '').replace('node-', ''),
+                  error: failedNode.error || t('page.task.unknownError'),
+                }}
+                components={[<span key="node" className="font-mono font-bold capitalize" />]}
+              />
             </p>
           </div>
         </div>
@@ -202,9 +213,9 @@ const TaskDetailPage: React.FC = () => {
         <div className="p-4 bg-emerald-950/60 border border-emerald-500/50 rounded-xl flex items-start gap-3 text-emerald-200 animate-fadeIn" role="alert">
           <CheckCircle2 className="text-emerald-400 mt-0.5 shrink-0" size={20} />
           <div>
-            <h4 className="font-bold text-sm">Task Completed Successfully</h4>
+            <h4 className="font-bold text-sm">{t('page.task.completedTitle')}</h4>
             <p className="text-xs text-emerald-300 mt-0.5">
-              All agent execution steps finished and payments have been released to respective providers.
+              {t('page.task.completedBody')}
             </p>
           </div>
         </div>
@@ -214,9 +225,12 @@ const TaskDetailPage: React.FC = () => {
       <div className="glass-panel flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
         <div>
           <div className="flex items-center gap-3">
-            <h1 className="text-xl md:text-2xl font-bold tracking-tight">Task Monitoring</h1>
+            <h1 className="text-xl md:text-2xl font-bold tracking-tight">{t('nav.taskMonitoring')}</h1>
             <span
               id="ws-status"
+              // The raw state, so tests can assert the connection without
+              // depending on the translated label inside the badge.
+              data-ws-state={wsStatus}
               className="chip text-[10px] tracking-wider uppercase"
               style={{
                 background: wsBadge.bg,
@@ -224,11 +238,11 @@ const TaskDetailPage: React.FC = () => {
                 color: wsBadge.color,
               }}
             >
-              WS: {wsBadge.label}
+              {t('page.task.wsStatus', { status: wsBadge.label })}
             </span>
           </div>
           <p className="text-xs text-[var(--text-secondary)] font-mono mt-1">
-            Task ID: {id}
+            {t('page.task.taskId', { id })}
           </p>
           {task?.prompt && (
             <p className="text-sm text-slate-300 mt-3 italic border-l-2 border-indigo-500 pl-3">
@@ -239,7 +253,7 @@ const TaskDetailPage: React.FC = () => {
 
         <div className="flex items-center gap-3 self-stretch md:self-auto justify-between">
           <div className="text-right hidden sm:block">
-            <div className="text-[10px] uppercase font-bold text-[var(--text-secondary)]">Status</div>
+            <div className="text-[10px] uppercase font-bold text-[var(--text-secondary)]">{t('common.status')}</div>
             <div className={`text-xs font-extrabold capitalize mt-0.5 ${
               task?.status === 'completed' ? 'text-emerald-400' :
               task?.status === 'failed' ? 'text-rose-400' : 'text-indigo-400'
@@ -249,7 +263,7 @@ const TaskDetailPage: React.FC = () => {
           </div>
           <button onClick={refetch} className="flex items-center gap-1.5 px-3 py-1.5 text-xs rounded-lg bg-slate-800 hover:bg-slate-700 border border-slate-700 transition">
             <RefreshCw size={12} />
-            <span>Sync</span>
+            <span>{t('page.task.sync')}</span>
           </button>
         </div>
       </div>
@@ -258,8 +272,8 @@ const TaskDetailPage: React.FC = () => {
       <div className="glass-panel relative flex flex-col">
         <div className="flex items-center gap-2 mb-3">
           <Play size={16} className="text-indigo-400" />
-          <h3 className="text-md font-semibold text-[var(--text-primary)]">Execution DAG Status</h3>
-          <span className="text-[10px] text-slate-500 ml-auto">Click node to inspect logs</span>
+          <h3 className="text-md font-semibold text-[var(--text-primary)]">{t('page.task.dagTitle')}</h3>
+          <span className="text-[10px] text-slate-500 ml-auto">{t('page.task.dagHint')}</span>
         </div>
         
         <div 
@@ -289,7 +303,7 @@ const TaskDetailPage: React.FC = () => {
             </ReactFlow>
           ) : (
             <div className="flex items-center justify-center h-full text-slate-500">
-              No nodes configured in the DAG
+              {t('page.task.dagEmpty')}
             </div>
           )}
         </div>

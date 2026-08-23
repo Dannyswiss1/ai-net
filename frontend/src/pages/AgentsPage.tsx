@@ -1,4 +1,5 @@
 import { useCallback, useMemo, useState } from 'react'
+import { useTranslation } from 'react-i18next'
 import { useSearchParams } from 'react-router-dom'
 import { useAgentRegistry } from '../hooks/useAgentRegistry'
 import { AgentTable } from '../components/agents/AgentTable'
@@ -17,6 +18,7 @@ import {
 import styles from './AgentsPage.module.css'
 
 function AgentsPage() {
+  const { t } = useTranslation()
   const { agents, loading, error, refetch } = useAgentRegistry()
   const [searchParams, setSearchParams] = useSearchParams()
   const [selected, setSelected] = useState<AgentRecord | null>(null)
@@ -62,10 +64,10 @@ function AgentsPage() {
     <div className={styles.page}>
       <div className={styles.header}>
         <div>
-          <h1 className={styles.title}>Agent Registry</h1>
+          <h1 className={styles.title}>{t('nav.agentRegistry')}</h1>
           <p className={styles.subtitle}>
             {loading
-              ? 'Loading registered agents…'
+              ? t('page.agents.loading')
               : `${visibleAgents.length} of ${agents.length} agent${
                   agents.length === 1 ? '' : 's'
                 }`}
@@ -75,9 +77,9 @@ function AgentsPage() {
 
       {error && !loading ? (
         <div className={styles.errorBox} id="registry-error" role="alert">
-          <p>Failed to load the agent registry: {error}</p>
+          <p>{t('page.agents.error', { error })}</p>
           <button type="button" className={styles.retryButton} onClick={refetch}>
-            Retry
+            {t('common.retry')}
           </button>
         </div>
       ) : (
