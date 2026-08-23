@@ -47,12 +47,12 @@ describe("Heartbeat Monitoring and Dead-Agent Cleanup", () => {
 
       const response = await request(app).post("/api/agents/agent-1/heartbeat");
 
-      expect(response.status).toBe(200);
-      expect(response.body.status).toBe("ok");
-      expect(response.body.lastSeenAt).toBeDefined();
+      // Heartbeat returns 204 No Content per the OpenAPI spec.
+      expect(response.status).toBe(204);
 
       const updated = db.findById("agent-1");
       expect(updated?.status).toBe("online");
+      expect(updated?.lastSeenAt).toBeDefined();
     });
 
     it("returns 404 for non-existent agent", async () => {

@@ -118,17 +118,20 @@ export function createTasksRouter(dispatch: DispatchFn, releasePayment: PaymentR
   // POST /api/tasks — rate-limited, then Zod-validated
   tasksRouter.post("/", rateLimitMiddleware, validate(createTaskSchema), (req: Request, res: Response): void => {
     const { prompt } = req.body as z.infer<typeof createTaskSchema>;
-    // Body first, then the header, then "anonymous" — the precedence the
-    // previous app.ts handler used.
-    const walletPublicKey: string =
+    // Body first, then the header, then reject — a wallet key is required.
+    const walletPublicKey: string | undefined =
       (req.body as z.infer<typeof createTaskSchema>).walletPublicKey ??
-      (req.headers["walletpublickey"] as string | undefined) ??
-      "anonymous";
+      (req.headers["walletpublickey"] as string | undefined);
+
+    // Reject if no wallet key provided, or if the key is clearly malformed
+    // (does not start with G — the Stellar public key prefix).
+    if (!walletPublicKey || !walletPublicKey.startsWith("G")) {
+      res.status(400).json({ error: "Invalid Stellar public key format" });
+      return;
+    }
 
     // ── Per-wallet daily quota ───────────────────────────────────────────────
-    // Reject early if the wallet has already hit its 24-hour task ceiling.
-    // This prevents a single wallet from exhausting the Venice AI token budget.
-    if (DAILY_TASK_LIMIT > 0 && walletPublicKey !== "anonymous") {
+    if (DAILY_TASK_LIMIT > 0) {
       const db = createTaskDb(getTaskDb());
       const since = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
       const { total } = db.list(walletPublicKey, 1, 1, { createdAfter: since });
