@@ -224,7 +224,8 @@ export function createAgentsRouter(options: AgentsRouterOptions = {}): Router {
    *             schema:
    *               $ref: '#/components/schemas/Error'
    */
-
+  // POST /api/agents/:id/heartbeat — handled below after /register to avoid
+  // shadowing the /register route. The duplicate handler here is removed.
 
 
   /**
@@ -362,10 +363,10 @@ export function createAgentsRouter(options: AgentsRouterOptions = {}): Router {
     }
 
     db.upsert({ ...agent, lastSeenAt: new Date().toISOString(), status: 'online' });
-    const updatedAgent = db.findById(req.params.id);
+    const updated = db.findById(req.params.id);
     res.status(200).json({
       status: "ok",
-      lastSeenAt: updatedAgent?.lastSeenAt ?? new Date().toISOString(),
+      lastSeenAt: updated?.lastSeenAt ?? new Date().toISOString(),
     });
   });
 
