@@ -76,8 +76,15 @@ jobs:
 
   contracts:
     name: smart-contracts
+    # Run after the lightweight Node jobs so that at most one Rust compilation
+    # is active at a time, preventing the runner (or a local dev laptop) from
+    # being overwhelmed by concurrent cargo builds.
+    needs: [backend, frontend]
     runs-on: ubuntu-latest
     timeout-minutes: 25
+    env:
+      # Limit Rust parallel codegen units to 1 to cap peak CPU/RAM usage.
+      CARGO_BUILD_JOBS: "1"
     defaults:
       run:
         working-directory: smart-contracts
@@ -141,6 +148,8 @@ jobs:
   e2e-fullstack:
     name: e2e-fullstack
     continue-on-error: true
+    # Sequence after backend so it doesn't overlap with the Rust contracts job.
+    needs: [backend]
     runs-on: ubuntu-latest
     timeout-minutes: 15
     defaults:
