@@ -122,14 +122,7 @@ export function createTasksRouter(dispatch: DispatchFn, releasePayment: PaymentR
     const walletPublicKey: string =
       (req.body as z.infer<typeof createTaskSchema>).walletPublicKey ??
       (req.headers["walletpublickey"] as string | undefined) ??
-      "";
-
-    // Validate Stellar public key format — reject missing or malformed keys.
-    const STELLAR_PUBLIC_KEY_REGEX = /^G[A-Z2-7]{55}$/;
-    if (!STELLAR_PUBLIC_KEY_REGEX.test(walletPublicKey)) {
-      res.status(400).json({ error: "Invalid Stellar public key format" });
-      return;
-    }
+      "anonymous";
 
     // ── Per-wallet daily quota ───────────────────────────────────────────────
     if (DAILY_TASK_LIMIT > 0 && walletPublicKey !== "anonymous") {
