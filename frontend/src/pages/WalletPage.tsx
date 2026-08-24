@@ -8,6 +8,7 @@ import { useTransactionHistory } from '../hooks/useTransactionHistory'
 import { SendXLMForm } from '../components/wallet/SendXLMForm'
 import { TransactionTable } from '../components/wallet/TransactionTable'
 import { Skeleton, SkeletonAvatar, SkeletonCard, SkeletonText } from '../components/common/Skeleton'
+import { WalletWizard } from '../components/wallet/WalletWizard'
 import styles from './WalletPage.module.css'
 
 const STELLAR_EXPLORER = 'https://stellar.expert/explorer/testnet'
@@ -57,7 +58,7 @@ export function WalletPageSkeleton() {
 
 function WalletPage() {
   const { t } = useTranslation()
-  const { publicKey, connected, ready, connectionMethod, freighterAvailable, connect, connectFreighter, disconnect } = useWallet()
+  const { publicKey, connected, ready, connectionMethod, freighterAvailable, connect, connectFreighter, disconnect, hasCompletedWizard } = useWallet()
   const { balance, loading: balanceLoading, error: balanceError } = useWalletBalance(publicKey)
   const { transactions, loading: txLoading, error: txError } = useTransactionHistory(publicKey)
   const [copied, setCopied] = React.useState(false)
