@@ -18,10 +18,21 @@ import { useCommandPalette } from './hooks/useCommandPalette'
 import './components/common/Toast.css'
 
 const AppContent: React.FC = () => {
+  return (
+    <Router>
+      <RoutedContent />
+    </Router>
+  );
+};
+
+// Lives INSIDE <Router>: useCommandPalette() calls useNavigate(), which
+// throws the "may be used only in the context of a <Router>" invariant when
+// rendered above it.
+const RoutedContent: React.FC = () => {
   const { isOpen, closePalette, search, recentSearches } = useCommandPalette();
 
   return (
-    <Router>
+    <>
       <Routes>
         <Route path="/" element={<LandingPage />} />
         <Route path="/*" element={
@@ -50,7 +61,7 @@ const AppContent: React.FC = () => {
           search(query);
         }}
       />
-    </Router>
+    </>
   );
 };
 
