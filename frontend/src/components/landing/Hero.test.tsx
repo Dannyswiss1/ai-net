@@ -1,14 +1,15 @@
+import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { render, screen } from '@testing-library/react';
 import { BrowserRouter } from 'react-router-dom';
 import Hero from './Hero';
 import { useTypingAnimation } from '../../hooks/useTypingAnimation';
 import { useParticles } from '../../hooks/useParticles';
 
-jest.mock('../../hooks/useTypingAnimation');
-jest.mock('../../hooks/useParticles');
+vi.mock('../../hooks/useTypingAnimation');
+vi.mock('../../hooks/useParticles');
 
-const mockUseTypingAnimation = jest.mocked(useTypingAnimation);
-const mockUseParticles = jest.mocked(useParticles);
+const mockUseTypingAnimation = vi.mocked(useTypingAnimation);
+const mockUseParticles = vi.mocked(useParticles);
 
 describe('Hero Component', () => {
   beforeEach(() => {
@@ -20,7 +21,7 @@ describe('Hero Component', () => {
   });
 
   afterEach(() => {
-    jest.clearAllMocks();
+    vi.clearAllMocks();
   });
 
   const renderComponent = () => {
