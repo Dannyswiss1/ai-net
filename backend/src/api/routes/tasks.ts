@@ -118,10 +118,12 @@ export function createTasksRouter(dispatch: DispatchFn, releasePayment: PaymentR
   // POST /api/tasks — rate-limited, then Zod-validated
   tasksRouter.post("/", rateLimitMiddleware, validate(createTaskSchema), (req: Request, res: Response): void => {
     const { prompt } = req.body as z.infer<typeof createTaskSchema>;
-    // Body first, then the header, then reject — a wallet key is required.
+    // Body first, then the header (both spellings accepted), then reject.
+    // A wallet key is required for all task submissions.
     const walletPublicKey: string | undefined =
       (req.body as z.infer<typeof createTaskSchema>).walletPublicKey ??
-      (req.headers["walletpublickey"] as string | undefined);
+      (req.headers["walletpublickey"] as string | undefined) ??
+      (req.headers["x-wallet-public-key"] as string | undefined);
 
     // Reject if no wallet key provided, or if the key is clearly malformed
     // (does not start with G — the Stellar public key prefix).
