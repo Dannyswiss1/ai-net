@@ -7,6 +7,7 @@ import AppShell from './components/layout/AppShell'
 import LandingPage from './pages/LandingPage'
 import AgentsPage from './pages/AgentsPage'
 import NewTaskPage from './pages/tasks/NewTaskPage'
+import TaskHistoryPage from './pages/tasks/TaskHistoryPage'
 import TaskDetailPage from './pages/TaskDetailPage'
 import RendererDemoPage from './pages/RendererDemoPage'
 import WalletPage from './pages/WalletPage'
@@ -26,6 +27,7 @@ const AppContent: React.FC = () => {
               <Route path="/wallet" element={<WalletPage />} />
               <Route path="/agents" element={<AgentsPage />} />
               <Route path="/tasks/new" element={<NewTaskPage />} />
+              <Route path="/tasks/history" element={<TaskHistoryPage />} />
               <Route path="/tasks/:id" element={<TaskDetailPage />} />
               <Route path="/renderer-demo" element={<RendererDemoPage />} />
               <Route path="*" element={<NotFoundPage />} />
