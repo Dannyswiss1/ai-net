@@ -1881,13 +1881,15 @@ mod test {
     fn gas_benchmark_custom_config_used_by_estimate_gas() {
         let (env, client, _admin) = setup_with_admin();
 
-        // Override with custom values.
+        // Override with custom values — all seven fields required.
         let custom = GasConfig {
             tx_overhead: 10_000,
             register_agent: 80_000,
             register_agent_marginal: 40_000,
             resolve_error: 30_000,
             resolve_error_marginal: 20_000,
+            slash_bond: GAS_SLASH_BOND,
+            deregister_with_bond: GAS_DEREGISTER_WITH_BOND,
         };
         client.set_gas_config(&custom);
 
