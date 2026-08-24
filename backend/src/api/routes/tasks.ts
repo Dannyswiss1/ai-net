@@ -122,7 +122,6 @@ export function createTasksRouter(dispatch: DispatchFn, releasePayment: PaymentR
     const walletPublicKey: string =
       (req.body as z.infer<typeof createTaskSchema>).walletPublicKey ??
       (req.headers["walletpublickey"] as string | undefined) ??
-      (req.headers["x-wallet-public-key"] as string | undefined) ??
       "anonymous";
 
     // ── Per-wallet daily quota ───────────────────────────────────────────────
