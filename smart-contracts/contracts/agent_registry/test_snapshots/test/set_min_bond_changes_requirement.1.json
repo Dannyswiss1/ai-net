@@ -72,7 +72,7 @@
                         "symbol": "id"
                       },
                       "val": {
-                        "symbol": "lowbond"
+                        "symbol": "low_bonded"
                       }
                     },
                     {
@@ -132,7 +132,7 @@
                   "symbol": "Agent"
                 },
                 {
-                  "symbol": "lowbond"
+                  "symbol": "low_bonded"
                 }
               ]
             },
@@ -152,7 +152,7 @@
                       "symbol": "Agent"
                     },
                     {
-                      "symbol": "lowbond"
+                      "symbol": "low_bonded"
                     }
                   ]
                 },
@@ -191,7 +191,7 @@
                         "symbol": "id"
                       },
                       "val": {
-                        "symbol": "lowbond"
+                        "symbol": "low_bonded"
                       }
                     },
                     {
@@ -268,7 +268,7 @@
                 "val": {
                   "vec": [
                     {
-                      "symbol": "lowbond"
+                      "symbol": "low_bonded"
                     }
                   ]
                 }
@@ -453,7 +453,7 @@
                 "symbol": "registry"
               },
               {
-                "symbol": "bond_lock"
+                "symbol": "agent_reg"
               }
             ],
             "data": {
@@ -463,7 +463,66 @@
                     "symbol": "agent_id"
                   },
                   "val": {
-                    "symbol": "lowbond"
+                    "symbol": "low_bonded"
+                  }
+                },
+                {
+                  "key": {
+                    "symbol": "capability"
+                  },
+                  "val": {
+                    "symbol": "research"
+                  }
+                },
+                {
+                  "key": {
+                    "symbol": "owner"
+                  },
+                  "val": {
+                    "address": "CAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAHK3M"
+                  }
+                },
+                {
+                  "key": {
+                    "symbol": "price_stroops"
+                  },
+                  "val": {
+                    "i128": {
+                      "hi": 0,
+                      "lo": 1000
+                    }
+                  }
+                }
+              ]
+            }
+          }
+        }
+      },
+      "failed_call": false
+    },
+    {
+      "event": {
+        "ext": "v0",
+        "contract_id": "0000000000000000000000000000000000000000000000000000000000000001",
+        "type_": "contract",
+        "body": {
+          "v0": {
+            "topics": [
+              {
+                "symbol": "registry"
+              },
+              {
+                "symbol": "bond_lck"
+              }
+            ],
+            "data": {
+              "map": [
+                {
+                  "key": {
+                    "symbol": "agent_id"
+                  },
+                  "val": {
+                    "symbol": "low_bonded"
                   }
                 },
                 {

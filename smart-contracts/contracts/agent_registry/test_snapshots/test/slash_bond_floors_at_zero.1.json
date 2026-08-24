@@ -49,7 +49,7 @@
                         "symbol": "id"
                       },
                       "val": {
-                        "symbol": "zeroed"
+                        "symbol": "floor_agent"
                       }
                     },
                     {
@@ -98,12 +98,12 @@
               "function_name": "slash_bond",
               "args": [
                 {
-                  "symbol": "zeroed"
+                  "symbol": "floor_agent"
                 },
                 {
                   "i128": {
                     "hi": 0,
-                    "lo": 200000000
+                    "lo": 100000999
                   }
                 }
               ]
@@ -135,7 +135,7 @@
                   "symbol": "Agent"
                 },
                 {
-                  "symbol": "zeroed"
+                  "symbol": "floor_agent"
                 }
               ]
             },
@@ -155,7 +155,7 @@
                       "symbol": "Agent"
                     },
                     {
-                      "symbol": "zeroed"
+                      "symbol": "floor_agent"
                     }
                   ]
                 },
@@ -194,7 +194,7 @@
                         "symbol": "id"
                       },
                       "val": {
-                        "symbol": "zeroed"
+                        "symbol": "floor_agent"
                       }
                     },
                     {
@@ -271,7 +271,7 @@
                 "val": {
                   "vec": [
                     {
-                      "symbol": "zeroed"
+                      "symbol": "floor_agent"
                     }
                   ]
                 }
