@@ -1,4 +1,3 @@
-import React from 'react';
 import { render, screen } from '@testing-library/react';
 import { BrowserRouter } from 'react-router-dom';
 import Hero from './Hero';
@@ -8,8 +7,8 @@ import { useParticles } from '../../hooks/useParticles';
 jest.mock('../../hooks/useTypingAnimation');
 jest.mock('../../hooks/useParticles');
 
-const mockUseTypingAnimation = useTypingAnimation as jest.Mock;
-const mockUseParticles = useParticles as jest.Mock;
+const mockUseTypingAnimation = jest.mocked(useTypingAnimation);
+const mockUseParticles = jest.mocked(useParticles);
 
 describe('Hero Component', () => {
   beforeEach(() => {
