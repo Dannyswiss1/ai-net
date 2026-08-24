@@ -1,6 +1,7 @@
 // src/pages/dashboard.tsx
 import React from 'react';
 import { useTranslation } from 'react-i18next';
+import { Navigate } from 'react-router-dom';
 import { useWallet } from '../hooks/useWallet';
 import { useNetworkStats } from '../hooks/useNetworkStats';
 import { useToast } from '../context/ToastContext';
@@ -61,7 +62,7 @@ export const DashboardSkeleton: React.FC = () => {
 };
 
 export const DashboardPage: React.FC = () => {
-  const { address } = useWallet();
+  const { address, connected } = useWallet();
   const { data, loading, error } = useNetworkStats();
   const { showToast } = useToast();
   const { t, i18n } = useTranslation();
@@ -75,14 +76,10 @@ export const DashboardPage: React.FC = () => {
     }
   }, [error, showToast, i18n]);
 
-  // Redirect unauthenticated users
-  React.useEffect(() => {
-    if (!address) {
-      window.location.replace('/');
-    }
-  }, [address]);
-
-  if (!address) return null; // render nothing while redirecting
+  // Redirect unauthenticated users using React Router to preserve SPA state
+  if (!connected) {
+    return <Navigate to="/" replace />;
+  }
 
   if (loading) {
     return (
@@ -117,7 +114,7 @@ export const DashboardPage: React.FC = () => {
       </section>
       <section className={styles.recentTasks}>
         <h2 className={styles.heading}>{t('page.dashboard.recentTasks')}</h2>
-        <RecentTasksTable walletAddress={address} loading={loading} />
+        <RecentTasksTable walletAddress={address ?? ''} loading={loading} />
       </section>
     </DashboardLayout>
   );
