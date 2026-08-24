@@ -7,7 +7,34 @@ import { DashboardLayout } from '../components/dashboard/DashboardLayout';
 import { KpiCard } from '../components/dashboard/KpiCard';
 import { NetworkHealthBadge } from '../components/dashboard/NetworkHealthBadge';
 import { RecentTasksTable } from '../components/dashboard/RecentTasksTable';
+import { Skeleton, SkeletonAvatar, SkeletonCard, SkeletonTable } from '../components/common/Skeleton';
 import styles from './dashboard.module.css';
+
+/**
+ * Context-aware skeleton that mirrors the dashboard layout so there is no
+ * layout shift between the loading and loaded states.
+ */
+export const DashboardSkeleton: React.FC = () => (
+  <div data-testid="dashboard-skeleton" aria-busy="true" aria-label="Loading dashboard">
+    <section className={styles.kpis}>
+      {Array.from({ length: 4 }, (_, i) => (
+        <SkeletonCard key={i} className={styles.kpiSkeleton} data-testid="dashboard-kpi-skeleton">
+          <Skeleton width="60%" height="0.875rem" />
+          <Skeleton width="70%" height="1.75rem" />
+          <Skeleton variant="rectangular" width="100%" height="2.5rem" />
+        </SkeletonCard>
+      ))}
+    </section>
+    <section className={styles.health}>
+      <SkeletonAvatar size={10} />
+      <Skeleton width="4rem" height="0.875rem" />
+    </section>
+    <section className={styles.recentTasks}>
+      <h2 className={styles.heading}>Recent Tasks</h2>
+      <SkeletonTable rows={5} columns={4} />
+    </section>
+  </div>
+);
 
 export const DashboardPage: React.FC = () => {
   const { address } = useWallet();
@@ -30,6 +57,14 @@ export const DashboardPage: React.FC = () => {
 
   if (!address) return null; // render nothing while redirecting
 
+  if (loading) {
+    return (
+      <DashboardLayout>
+        <DashboardSkeleton />
+      </DashboardLayout>
+    );
+  }
+
   const kpiData = data || {
     totalAgents: 0,
     totalTasks: 0,
@@ -40,7 +75,7 @@ export const DashboardPage: React.FC = () => {
   const sparkline = [kpiData.totalAgents, kpiData.totalTasks, kpiData.totalXLMTransacted]; // placeholder data
 
   return (
-    <DashboardLayout>
+    <DashboardLayout className="fade-in">
       <section className={styles.kpis}>
         <KpiCard title="Total Agents" value={kpiData.totalAgents} sparklineData={sparkline} loading={loading} />
         <KpiCard title="Total Tasks Run" value={kpiData.totalTasks} sparklineData={sparkline} loading={loading} />
