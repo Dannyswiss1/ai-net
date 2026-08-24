@@ -1,4 +1,5 @@
 import { useCallback, useMemo, useState } from 'react'
+import { useTranslation } from 'react-i18next'
 import { useSearchParams } from 'react-router-dom'
 import { useAgentRegistry } from '../hooks/useAgentRegistry'
 import { AgentTable } from '../components/agents/AgentTable'
@@ -25,8 +26,10 @@ const SKELETON_ROWS = 5
  * so there is no layout shift between the loading and loaded states.
  */
 export function AgentsPageSkeleton() {
+  const { t } = useTranslation()
+
   return (
-    <div data-testid="agents-page-skeleton" aria-busy="true" aria-label="Loading agent registry">
+    <div data-testid="agents-page-skeleton" aria-busy="true" aria-label={t('a11y.loadingAgentRegistry')}>
       <div className={styles.filterSkeleton}>
         <div className={styles.filterGroupSkeleton}>
           <Skeleton width="6rem" height="0.75rem" />
@@ -55,6 +58,7 @@ export function AgentsPageSkeleton() {
 }
 
 function AgentsPage() {
+  const { t } = useTranslation()
   const { agents, loading, error, refetch } = useAgentRegistry()
   const [searchParams, setSearchParams] = useSearchParams()
   const [selected, setSelected] = useState<AgentRecord | null>(null)
@@ -100,10 +104,10 @@ function AgentsPage() {
     <div className={styles.page}>
       <div className={styles.header}>
         <div>
-          <h1 className={styles.title}>Agent Registry</h1>
+          <h1 className={styles.title}>{t('nav.agentRegistry')}</h1>
           <p className={styles.subtitle}>
             {loading
-              ? 'Loading registered agents…'
+              ? t('page.agents.loading')
               : `${visibleAgents.length} of ${agents.length} agent${
                   agents.length === 1 ? '' : 's'
                 }`}
@@ -113,9 +117,9 @@ function AgentsPage() {
 
       {error && !loading ? (
         <div className={styles.errorBox} id="registry-error" role="alert">
-          <p>Failed to load the agent registry: {error}</p>
+          <p>{t('page.agents.error', { error })}</p>
           <button type="button" className={styles.retryButton} onClick={refetch}>
-            Retry
+            {t('common.retry')}
           </button>
         </div>
       ) : loading && agents.length === 0 ? (

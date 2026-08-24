@@ -1,4 +1,5 @@
 import React from 'react'
+import { useTranslation } from 'react-i18next'
 import { LayoutDashboard, PlusCircle, Bot, Wallet, History } from 'lucide-react'
 import './Sidebar.css'
 
@@ -13,12 +14,14 @@ const Sidebar: React.FC<SidebarProps> = ({
   currentPath, 
   onNavigate 
 }) => {
+  const { t } = useTranslation()
+
   const navItems = [
-    { path: '/', icon: <LayoutDashboard size={18} />, label: 'Dashboard' },
-    { path: '/tasks/new', icon: <PlusCircle size={18} />, label: 'New Task' },
-    { path: '/tasks/history', icon: <History size={18} />, label: 'Task History' },
-    { path: '/agents', icon: <Bot size={18} />, label: 'Agents' },
-    { path: '/wallet', icon: <Wallet size={18} />, label: 'Wallet' },
+    { path: '/', icon: <LayoutDashboard size={18} />, label: t('nav.dashboard') },
+    { path: '/tasks/new', icon: <PlusCircle size={18} />, label: t('nav.newTask') },
+    { path: '/tasks/history', icon: <History size={18} />, label: t('nav.taskHistory') },
+    { path: '/agents', icon: <Bot size={18} />, label: t('nav.agents') },
+    { path: '/wallet', icon: <Wallet size={18} />, label: t('nav.wallet') },
   ]
 
   const handleKeyDown = (e: React.KeyboardEvent, path: string) => {
@@ -32,7 +35,7 @@ const Sidebar: React.FC<SidebarProps> = ({
     <aside 
       className={`sidebar ${collapsed ? 'collapsed' : ''}`}
     >
-      <nav className="sidebar-nav" role="navigation" aria-label="Main navigation">
+      <nav className="sidebar-nav" role="navigation" aria-label={t('a11y.mainNavigation')}>
         <ul>
           {navItems.map((item) => {
             const isActive = currentPath === item.path

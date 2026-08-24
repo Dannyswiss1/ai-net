@@ -1,5 +1,7 @@
 ﻿import React from 'react'
 import { BrowserRouter as Router, Routes, Route } from 'react-router-dom'
+import { I18nextProvider } from 'react-i18next'
+import i18n from './i18n'
 import { WalletProvider } from './context/WalletContext'
 import { ToastProvider } from './context/ToastContext'
 import { NotFoundPage } from './pages/NotFoundPage';
@@ -17,6 +19,11 @@ import { CommandPalette } from './components/common/CommandPalette'
 import { useCommandPalette } from './hooks/useCommandPalette'
 import './components/common/Toast.css'
 
+/**
+ * Everything that needs router context lives here, so `<Router>` (mounted by
+ * `App` below) is already in place before `useCommandPalette` calls
+ * `useNavigate`.
+ */
 const AppContent: React.FC = () => {
   return (
     <Router>
@@ -67,13 +74,17 @@ const RoutedContent: React.FC = () => {
 
 const App: React.FC = () => {
   return (
-    <ErrorBoundary>
-      <WalletProvider>
-        <ToastProvider>
-          <AppContent />
-        </ToastProvider>
-      </WalletProvider>
-    </ErrorBoundary>
+    <I18nextProvider i18n={i18n}>
+      <ErrorBoundary>
+        <WalletProvider>
+          <ToastProvider>
+            <Router>
+              <AppContent />
+            </Router>
+          </ToastProvider>
+        </WalletProvider>
+      </ErrorBoundary>
+    </I18nextProvider>
   )
 }
 
