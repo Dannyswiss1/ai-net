@@ -55,11 +55,29 @@ async function withRetry<T>(fn: () => Promise<T>): Promise<T> {
   }
 }
 
+export interface PaymentServiceHooks {
+  /**
+   * Invoked after a payment is successfully released on-chain so callers can
+   * trigger a reconciliation check (e.g. `ReconciliationService.run('release')`).
+   */
+  reconciliationHook?: (record: PaymentRecord) => void;
+}
+
 export class PaymentService {
   private server: Server;
 
-  constructor(private db: PaymentDb) {
+  constructor(
+    private db: PaymentDb,
+    private hooks: PaymentServiceHooks = {}
+  ) {
     this.server = new Server(STELLAR_HORIZON);
+  }
+
+  /**
+   * Enumerate all local payment records — the reconciliation source of truth.
+   */
+  listLocalRecords(): PaymentRecord[] {
+    return this.db.listAll();
   }
 
   async lock(
@@ -145,6 +163,12 @@ export class PaymentService {
     const txHash = (result as unknown as { hash: string }).hash;
 
     this.db.updateStatus(taskId, nodeId, "released", txHash);
+
+    this.hooks.reconciliationHook?.({
+      ...record,
+      status: "released",
+      txHash,
+    });
     return txHash;
   }
 
