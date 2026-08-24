@@ -1742,6 +1742,73 @@ mod test {
         assert_eq!(v, 0);
     }
 
+    /// Custom GasConfig is persisted and used by estimate_gas (set_gas_config roundtrip).
+    #[test]
+    fn gas_benchmark_custom_config_used_by_estimate_gas() {
+        let (env, client, _admin) = setup_with_admin();
+
+        // Override with custom values — all seven fields required.
+        let custom = GasConfig {
+            tx_overhead: 10_000,
+            register_agent: 80_000,
+            register_agent_marginal: 40_000,
+            resolve_error: 30_000,
+            resolve_error_marginal: 20_000,
+            slash_bond: 50_000,
+            deregister_with_bond: 70_000,
+        };
+        client.set_gas_config(&custom);
+
+        // estimate_gas must now reflect the custom config.
+        let reg_1 = client.estimate_gas(&String::from_str(&env, "register_agent"), &1);
+        assert_eq!(reg_1, 80_000, "single register should use custom base cost");
+
+        let reg_10 = client.estimate_gas(&String::from_str(&env, "register_agents"), &10);
+        let expected_reg_10 = 80_000_u64 + 40_000_u64 * 9;
+        assert_eq!(
+            reg_10, expected_reg_10,
+            "batch of 10 should use custom marginal cost"
+        );
+
+        let res_1 = client.estimate_gas(&String::from_str(&env, "resolve_error"), &1);
+        assert_eq!(res_1, 30_000, "single resolve should use custom base cost");
+
+        let res_10 = client.estimate_gas(&String::from_str(&env, "resolve_errors"), &10);
+        let expected_res_10 = 30_000_u64 + 20_000_u64 * 9;
+        assert_eq!(
+            res_10, expected_res_10,
+            "batch of 10 resolves should use custom marginal cost"
+        );
+
+        // Confirm get_gas_config returns the persisted config unchanged.
+        assert_eq!(client.get_gas_config(), custom);
+    }
+
+    /// Verify tx overhead is amortised: a batch of N always costs less than N
+    /// individual calls that each pay the full transaction overhead.
+    #[test]
+    fn gas_benchmark_overhead_amortisation() {
+        let (env, client) = setup();
+
+        for n in [2u32, 5, 10, 20] {
+            let batched = client.estimate_gas(&String::from_str(&env, "register_agents"), &n);
+            let separate =
+                client.estimate_gas(&String::from_str(&env, "register_agent"), &1) * n as u64;
+            assert!(
+                batched < separate,
+                "register_agents({n}): batched {batched} must be < {n} × single {separate}"
+            );
+
+            let batched_res = client.estimate_gas(&String::from_str(&env, "resolve_errors"), &n);
+            let separate_res =
+                client.estimate_gas(&String::from_str(&env, "resolve_error"), &1) * n as u64;
+            assert!(
+                batched_res < separate_res,
+                "resolve_errors({n}): batched {batched_res} must be < {n} × single {separate_res}"
+            );
+        }
+    }
+
     // ── Event emission tests ─────────────────────────────────────────────────
     //
     // In Soroban's test Env, `env.events().all()` returns ONLY the events from
