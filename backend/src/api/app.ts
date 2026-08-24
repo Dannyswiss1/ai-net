@@ -26,6 +26,7 @@ import { createReconciliationRouter, type ReconciliationRouterOptions } from "./
 import { rateLimitMiddleware, registerRateLimitMiddleware } from "./middleware/rateLimit";
 import { authMiddleware } from "./middleware/auth";
 import { createCorsMiddleware } from "./middleware/cors";
+import { compressionMiddleware } from "./middleware/compression";
 import { requestId } from "./middleware/requestId";
 import { requestLogger } from "./middleware/requestLogger";
 import { errorHandler } from "./middleware/errorHandler";
@@ -61,6 +62,8 @@ export interface AppOptions {
   heartbeatOptions?: HeartbeatServiceOptions;
   /** Options for the payment reconciliation router */
   reconciliation?: ReconciliationRouterOptions;
+  /** Disable response compression (useful in tests). Default: false. */
+  disableCompression?: boolean;
 }
 
 /**
@@ -95,6 +98,13 @@ export function createApp(opts: AppOptions = {}): {
   app.use(createCorsMiddleware());
   app.use(requestId);
   app.use(requestLogger);
+
+  // ── Response compression ────────────────────────────────────────────────────
+  // Applied early so that all downstream route handlers benefit automatically.
+  // Disabled in tests (disableCompression: true) to keep assertions simple.
+  if (!opts.disableCompression && process.env.NODE_ENV !== "test") {
+    app.use(...compressionMiddleware());
+  }
 
   const dispatch: DispatchFn = opts.dispatch ?? makeHttpDispatch(opts.agentRegistry);
   const releasePayment: PaymentReleaseFn =
