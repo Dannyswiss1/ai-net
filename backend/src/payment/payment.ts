@@ -160,17 +160,40 @@ export class PaymentService {
       ? tracingService.startSpan(correlationId, 'payment', 'release', { taskId, nodeId })
       : null;
 
-    const result = await withRetry(() => this.server.submitTransaction(tx));
-    const txHash = (result as unknown as { hash: string }).hash;
+    try {
+      const account = await withRetry(() =>
+        this.server.loadAccount(coordinatorKeypair.publicKey())
+      );
 
-    this.db.updateStatus(taskId, nodeId, "released", txHash);
+      const tx = new TransactionBuilder(account, {
+        fee: BASE_FEE,
+        networkPassphrase: STELLAR_NETWORK,
+      })
+        .addOperation(
+          Operation.claimClaimableBalance({ balanceId: record.balanceId })
+        )
+        .setTimeout(30)
+        .build();
 
-    this.hooks.reconciliationHook?.({
-      ...record,
-      status: "released",
-      txHash,
-    });
-    return txHash;
+      tx.sign(coordinatorKeypair);
+
+      const result = await withRetry(() => this.server.submitTransaction(tx));
+      const txHash = (result as unknown as { hash: string }).hash;
+
+      this.db.updateStatus(taskId, nodeId, "released", txHash);
+
+      this.hooks.reconciliationHook?.({
+        ...record,
+        status: "released",
+        txHash,
+      });
+
+      if (span) tracingService.endSpan(span.spanId, 'completed', { txHash });
+      return txHash;
+    } catch (err) {
+      if (span) tracingService.endSpan(span.spanId, 'failed', { error: String(err) });
+      throw err;
+    }
   }
 
   async refund(
