@@ -137,7 +137,7 @@ const TopNav: React.FC<TopNavProps> = ({
         <button
           className="theme-toggle"
           onClick={() => {
-            const next: Record<string, string> = { light: 'dark', dark: 'system', system: 'light' }
+            const next: Record<string, 'light' | 'dark' | 'system'> = { light: 'dark', dark: 'system', system: 'light' }
             setMode(next[mode])
           }}
           role="switch"
