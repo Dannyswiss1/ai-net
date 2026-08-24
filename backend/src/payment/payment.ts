@@ -56,11 +56,29 @@ async function withRetry<T>(fn: () => Promise<T>): Promise<T> {
   }
 }
 
+export interface PaymentServiceHooks {
+  /**
+   * Invoked after a payment is successfully released on-chain so callers can
+   * trigger a reconciliation check (e.g. `ReconciliationService.run('release')`).
+   */
+  reconciliationHook?: (record: PaymentRecord) => void;
+}
+
 export class PaymentService {
   private server: Server;
 
-  constructor(private db: PaymentDb) {
+  constructor(
+    private db: PaymentDb,
+    private hooks: PaymentServiceHooks = {}
+  ) {
     this.server = new Server(STELLAR_HORIZON);
+  }
+
+  /**
+   * Enumerate all local payment records — the reconciliation source of truth.
+   */
+  listLocalRecords(): PaymentRecord[] {
+    return this.db.listAll();
   }
 
   async lock(
@@ -142,33 +160,17 @@ export class PaymentService {
       ? tracingService.startSpan(correlationId, 'payment', 'release', { taskId, nodeId })
       : null;
 
-    try {
-      const account = await withRetry(() =>
-        this.server.loadAccount(coordinatorKeypair.publicKey())
-      );
+    const result = await withRetry(() => this.server.submitTransaction(tx));
+    const txHash = (result as unknown as { hash: string }).hash;
 
-      const tx = new TransactionBuilder(account, {
-        fee: BASE_FEE,
-        networkPassphrase: STELLAR_NETWORK,
-      })
-        .addOperation(
-          Operation.claimClaimableBalance({ balanceId: record.balanceId })
-        )
-        .setTimeout(30)
-        .build();
+    this.db.updateStatus(taskId, nodeId, "released", txHash);
 
-      tx.sign(coordinatorKeypair);
-
-      const result = await withRetry(() => this.server.submitTransaction(tx));
-      const txHash = (result as unknown as { hash: string }).hash;
-
-      this.db.updateStatus(taskId, nodeId, "released", txHash);
-      if (span) tracingService.endSpan(span.spanId, 'completed', { txHash });
-      return txHash;
-    } catch (err) {
-      if (span) tracingService.endSpan(span.spanId, 'failed', { error: String(err) });
-      throw err;
-    }
+    this.hooks.reconciliationHook?.({
+      ...record,
+      status: "released",
+      txHash,
+    });
+    return txHash;
   }
 
   async refund(
