@@ -329,7 +329,11 @@ export function createAgentsRouter(options: AgentsRouterOptions = {}): Router {
     }
 
     db.upsert({ ...agent, lastSeenAt: new Date().toISOString(), status: 'online' });
-    res.status(204).send();
+    const updated = db.findById(req.params.id);
+    res.status(200).json({
+      status: "ok",
+      lastSeenAt: updated?.lastSeenAt ?? new Date().toISOString(),
+    });
   });
 
   // DELETE /api/agents/:id

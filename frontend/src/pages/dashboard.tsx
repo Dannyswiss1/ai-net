@@ -114,7 +114,7 @@ export const DashboardPage: React.FC = () => {
       </section>
       <section className={styles.recentTasks}>
         <h2 className={styles.heading}>{t('page.dashboard.recentTasks')}</h2>
-        <RecentTasksTable walletAddress={address} loading={loading} />
+        <RecentTasksTable walletAddress={address ?? ''} loading={loading} />
       </section>
     </DashboardLayout>
   );

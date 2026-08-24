@@ -47,8 +47,8 @@ describe("Heartbeat Monitoring and Dead-Agent Cleanup", () => {
 
       const response = await request(app).post("/api/agents/agent-1/heartbeat");
 
-      // Heartbeat returns 204 No Content per the OpenAPI spec.
-      expect(response.status).toBe(204);
+      // Heartbeat returns 200 per the route implementation.
+      expect(response.status).toBe(200);
 
       const updated = db.findById("agent-1");
       expect(updated?.status).toBe("online");

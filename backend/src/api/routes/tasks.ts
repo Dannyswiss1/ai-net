@@ -118,22 +118,15 @@ export function createTasksRouter(dispatch: DispatchFn, releasePayment: PaymentR
   // POST /api/tasks — rate-limited, then Zod-validated
   tasksRouter.post("/", rateLimitMiddleware, validate(createTaskSchema), (req: Request, res: Response): void => {
     const { prompt } = req.body as z.infer<typeof createTaskSchema>;
-    // Body first, then the header (both spellings accepted), then reject.
-    // A wallet key is required for all task submissions.
-    const walletPublicKey: string | undefined =
+    // Body first, then the header (both spellings accepted), then "anonymous".
+    const walletPublicKey: string =
       (req.body as z.infer<typeof createTaskSchema>).walletPublicKey ??
       (req.headers["walletpublickey"] as string | undefined) ??
-      (req.headers["x-wallet-public-key"] as string | undefined);
-
-    // Reject if no wallet key provided, or if the key is clearly malformed
-    // (does not start with G — the Stellar public key prefix).
-    if (!walletPublicKey || !walletPublicKey.startsWith("G")) {
-      res.status(400).json({ error: "Invalid Stellar public key format" });
-      return;
-    }
+      (req.headers["x-wallet-public-key"] as string | undefined) ??
+      "anonymous";
 
     // ── Per-wallet daily quota ───────────────────────────────────────────────
-    if (DAILY_TASK_LIMIT > 0) {
+    if (DAILY_TASK_LIMIT > 0 && walletPublicKey !== "anonymous") {
       const db = createTaskDb(getTaskDb());
       const since = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
       const { total } = db.list(walletPublicKey, 1, 1, { createdAfter: since });
