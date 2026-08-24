@@ -41,6 +41,8 @@ export interface CoordinatorOptions {
   logger?: pino.Logger;
   /** Custom quality scorer; defaults to the built-in scorer with per-type rules. */
   qualityScorer?: QualityScorer;
+  /** Correlation ID propagated to downstream HTTP requests and used for tracing spans. */
+  correlationId?: string;
 }
 
 class ConcurrencyLimiter {
