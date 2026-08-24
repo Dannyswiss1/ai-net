@@ -48,6 +48,7 @@ const TopNav: React.FC<TopNavProps> = ({
       case '/': return t('nav.dashboard')
       case '/agents': return t('nav.agentRegistry')
       case '/tasks/new': return t('nav.newTask')
+      case '/tasks/history': return t('nav.taskHistory')
       case '/wallet': return t('nav.wallet')
       default:
         if (path.startsWith('/tasks/')) return t('nav.taskMonitoring')

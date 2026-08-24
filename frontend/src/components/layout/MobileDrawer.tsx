@@ -1,7 +1,7 @@
 import React, { forwardRef } from 'react'
 import { useTranslation } from 'react-i18next'
 import { motion } from 'framer-motion'
-import { LayoutDashboard, PlusCircle, Bot, Wallet } from 'lucide-react'
+import { LayoutDashboard, PlusCircle, Bot, Wallet, History } from 'lucide-react'
 import './MobileDrawer.css'
 
 interface MobileDrawerProps {
@@ -20,6 +20,7 @@ const MobileDrawer = forwardRef<HTMLDivElement, MobileDrawerProps>(({
   const navItems = [
     { path: '/', icon: <LayoutDashboard size={20} />, label: t('nav.dashboard') },
     { path: '/tasks/new', icon: <PlusCircle size={20} />, label: t('nav.newTask') },
+    { path: '/tasks/history', icon: <History size={20} />, label: t('nav.taskHistory') },
     { path: '/agents', icon: <Bot size={20} />, label: t('nav.agents') },
     { path: '/wallet', icon: <Wallet size={20} />, label: t('nav.wallet') },
   ]

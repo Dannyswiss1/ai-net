@@ -6,7 +6,8 @@ import 'reactflow/dist/style.css';
 import { useTaskMonitor } from '../hooks/useTaskMonitor';
 import { AgentOutputPanel } from '../components/dashboard/AgentOutputPanel';
 import { PaymentTimeline } from '../components/dashboard/PaymentTimeline';
-import { AlertCircle, CheckCircle2, Loader2, Play, RefreshCw } from 'lucide-react';
+import { Skeleton, SkeletonText } from '../components/common/Skeleton';
+import { AlertCircle, CheckCircle2, Play, RefreshCw } from 'lucide-react';
 
 const CustomNode: React.FC<{ id: string; data: { label: string; status: string } }> = ({ id, data }) => {
   const { t } = useTranslation();
@@ -30,6 +31,52 @@ const CustomNode: React.FC<{ id: string; data: { label: string; status: string }
 
 const nodeTypes = {
   custom: CustomNode,
+};
+
+/**
+ * Context-aware skeleton that mirrors the task detail layout (header, DAG
+ * panel, output/payment panels) so there is no layout shift on load.
+ */
+export const TaskDetailSkeleton: React.FC = () => {
+  const { t } = useTranslation();
+
+  return (
+    <div className="space-y-6" data-testid="task-detail-skeleton" aria-busy="true" aria-label={t('a11y.loadingTaskDetails')}>
+      {/* Details Header */}
+      <div className="glass-panel flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
+        <div className="w-full md:w-2/3">
+          <div className="flex items-center gap-3">
+            <Skeleton width="12rem" height="1.75rem" />
+            <Skeleton variant="pill" width="6rem" height="1.25rem" />
+          </div>
+          <Skeleton width="16rem" height="0.75rem" className="mt-2" />
+          <Skeleton width="80%" height="1rem" className="mt-3" />
+        </div>
+        <div className="flex items-center gap-3">
+          <Skeleton width="6rem" height="2.5rem" />
+          <Skeleton width="4rem" height="2.5rem" />
+        </div>
+      </div>
+
+      {/* DAG Graph Panel */}
+      <div className="glass-panel relative flex flex-col">
+        <div className="flex items-center gap-2 mb-3">
+          <Skeleton width="12rem" height="1rem" />
+        </div>
+        <Skeleton variant="rectangular" width="100%" height="280px" className="rounded-xl" />
+      </div>
+
+      {/* Combined Panels */}
+      <div className="grid grid-cols-1 lg:grid-cols-5 gap-6">
+        <div className="glass-panel lg:col-span-3">
+          <SkeletonText lines={6} />
+        </div>
+        <div className="glass-panel lg:col-span-2">
+          <SkeletonText lines={4} />
+        </div>
+      </div>
+    </div>
+  );
 };
 
 const TaskDetailPage: React.FC = () => {
@@ -133,12 +180,7 @@ const TaskDetailPage: React.FC = () => {
   }, [nodes]);
 
   if (loading && !nodes.length) {
-    return (
-      <div className="flex flex-col items-center justify-center min-h-[400px]">
-        <Loader2 className="animate-spin text-indigo-500 mb-4" size={40} />
-        <p className="text-slate-400">{t('page.task.loading')}</p>
-      </div>
-    );
+    return <TaskDetailSkeleton />;
   }
 
   if (error) {
@@ -187,7 +229,7 @@ const TaskDetailPage: React.FC = () => {
   const wsBadge = getWsStatusBadge();
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-6 fade-in">
       {/* Task failed banner */}
       {failedNode && (
         <div className="p-4 bg-rose-950/60 border border-rose-500/50 rounded-xl flex items-start gap-3 text-rose-200 animate-fadeIn" role="alert">
