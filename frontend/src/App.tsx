@@ -1,4 +1,4 @@
-import React from 'react'
+﻿import React from 'react'
 import { BrowserRouter as Router, Routes, Route } from 'react-router-dom'
 import { WalletProvider } from './context/WalletContext'
 import { ToastProvider } from './context/ToastContext'
@@ -7,14 +7,19 @@ import AppShell from './components/layout/AppShell'
 import LandingPage from './pages/LandingPage'
 import AgentsPage from './pages/AgentsPage'
 import NewTaskPage from './pages/tasks/NewTaskPage'
+import TaskHistoryPage from './pages/tasks/TaskHistoryPage'
 import TaskDetailPage from './pages/TaskDetailPage'
 import RendererDemoPage from './pages/RendererDemoPage'
 import WalletPage from './pages/WalletPage'
 import DashboardPage from './pages/dashboard'
 import ErrorBoundary from './components/common/ErrorBoundary'
+import { CommandPalette } from './components/common/CommandPalette'
+import { useCommandPalette } from './hooks/useCommandPalette'
 import './components/common/Toast.css'
 
 const AppContent: React.FC = () => {
+  const { isOpen, closePalette, search, recentSearches } = useCommandPalette();
+
   return (
     <Router>
       <Routes>
@@ -26,6 +31,7 @@ const AppContent: React.FC = () => {
               <Route path="/wallet" element={<WalletPage />} />
               <Route path="/agents" element={<AgentsPage />} />
               <Route path="/tasks/new" element={<NewTaskPage />} />
+              <Route path="/tasks/history" element={<TaskHistoryPage />} />
               <Route path="/tasks/:id" element={<TaskDetailPage />} />
               <Route path="/renderer-demo" element={<RendererDemoPage />} />
               <Route path="*" element={<NotFoundPage />} />
@@ -34,6 +40,16 @@ const AppContent: React.FC = () => {
         } />
         <Route path="*" element={<NotFoundPage />} />
       </Routes>
+      <CommandPalette
+        isOpen={isOpen}
+        onClose={closePalette}
+        onSearch={search}
+        recentSearches={recentSearches}
+        onRecentSearchClick={(query) => {
+          // Trigger search with the recent query
+          search(query);
+        }}
+      />
     </Router>
   );
 };

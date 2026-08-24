@@ -1,5 +1,5 @@
 import React from 'react'
-import { LayoutDashboard, PlusCircle, Bot, Wallet } from 'lucide-react'
+import { LayoutDashboard, PlusCircle, Bot, Wallet, History } from 'lucide-react'
 import './Sidebar.css'
 
 interface SidebarProps {
@@ -16,6 +16,7 @@ const Sidebar: React.FC<SidebarProps> = ({
   const navItems = [
     { path: '/', icon: <LayoutDashboard size={18} />, label: 'Dashboard' },
     { path: '/tasks/new', icon: <PlusCircle size={18} />, label: 'New Task' },
+    { path: '/tasks/history', icon: <History size={18} />, label: 'Task History' },
     { path: '/agents', icon: <Bot size={18} />, label: 'Agents' },
     { path: '/wallet', icon: <Wallet size={18} />, label: 'Wallet' },
   ]

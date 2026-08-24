@@ -6,9 +6,51 @@ import { useWalletBalance } from '../hooks/useWalletBalance'
 import { useTransactionHistory } from '../hooks/useTransactionHistory'
 import { SendXLMForm } from '../components/wallet/SendXLMForm'
 import { TransactionTable } from '../components/wallet/TransactionTable'
+import { Skeleton, SkeletonAvatar, SkeletonCard, SkeletonText } from '../components/common/Skeleton'
 import styles from './WalletPage.module.css'
 
 const STELLAR_EXPLORER = 'https://stellar.expert/explorer/testnet'
+
+/**
+ * Context-aware skeleton that mirrors the connected wallet layout so there is
+ * no layout shift between the loading and loaded states.
+ */
+export function WalletPageSkeleton() {
+  return (
+    <div className={styles.page} data-testid="wallet-page-skeleton" aria-busy="true" aria-label="Loading wallet">
+      <div className={styles.header}>
+        <h1 className={styles.title}>
+          <Wallet size={24} />
+          Wallet
+        </h1>
+      </div>
+
+      <div className={styles.balanceCardSkeleton}>
+        <div className={styles.balanceSkeletonSection}>
+          <Skeleton width="10rem" height="0.75rem" />
+          <Skeleton width="14rem" height="2rem" />
+        </div>
+        <div className={styles.publicKeySkeleton}>
+          <SkeletonAvatar size={116} data-testid="wallet-qr-skeleton" />
+          <div className={styles.publicKeySkeletonDetails}>
+            <Skeleton width="6rem" height="0.75rem" />
+            <Skeleton width="16rem" height="1.25rem" />
+            <Skeleton variant="pill" width="10rem" height="1.25rem" />
+          </div>
+        </div>
+      </div>
+
+      <div className={styles.contentGrid}>
+        <SkeletonCard className={styles.panelSkeleton}>
+          <SkeletonText lines={4} />
+        </SkeletonCard>
+        <SkeletonCard className={styles.panelSkeleton}>
+          <SkeletonText lines={3} />
+        </SkeletonCard>
+      </div>
+    </div>
+  )
+}
 
 function WalletPage() {
   const { publicKey, connected, ready, connectionMethod, freighterAvailable, connect, connectFreighter, disconnect } = useWallet()
@@ -227,6 +269,12 @@ function WalletPage() {
         </div>
       </div>
     )
+  }
+
+  // Initial balance fetch: show the dedicated page skeleton instead of
+  // partially-populated content so there is no layout shift on load.
+  if (balanceLoading) {
+    return <WalletPageSkeleton />
   }
 
   return (

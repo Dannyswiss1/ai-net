@@ -22,6 +22,7 @@ import { agentsRouter } from "./routes/agents";
 import { healthRouter } from "./routes/health";
 import { createStatsRouter } from "./routes/stats";
 import { createTasksRouter } from "./routes/tasks";
+import { createReconciliationRouter, type ReconciliationRouterOptions } from "./routes/reconciliation";
 import { rateLimitMiddleware, registerRateLimitMiddleware } from "./middleware/rateLimit";
 import { authMiddleware } from "./middleware/auth";
 import { createCorsMiddleware } from "./middleware/cors";
@@ -51,6 +52,8 @@ export interface AppOptions {
   enableHeartbeatCleanup?: boolean;
   /** Custom options for heartbeat cleanup service */
   heartbeatOptions?: HeartbeatServiceOptions;
+  /** Options for the payment reconciliation router */
+  reconciliation?: ReconciliationRouterOptions;
 }
 
 /**
@@ -116,6 +119,9 @@ export function createApp(opts: AppOptions = {}): {
 
   // ── Task routes ────────────────────────────────────────────────────────────
   app.use("/api/tasks", createTasksRouter(dispatch, releasePayment));
+
+  // ── Payment reconciliation routes ──────────────────────────────────────────
+  app.use("/api/reconciliation", createReconciliationRouter(opts.reconciliation));
 
   // ── HTTP server ────────────────────────────────────────────────────────────
   const httpServer = createServer(app);
