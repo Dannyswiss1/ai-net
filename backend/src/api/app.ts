@@ -30,6 +30,9 @@ import { compressionMiddleware } from "./middleware/compression";
 import { requestId } from "./middleware/requestId";
 import { requestLogger } from "./middleware/requestLogger";
 import { errorHandler } from "./middleware/errorHandler";
+import { versioningMiddleware } from "./middleware/versioning";
+import { createV1TasksRouter } from "./routes/v1/tasks";
+import { createV2TasksRouter } from "./routes/v2/tasks";
 import { createLogger } from "../utils/logger";
 import { createTaskDb, getTaskDb } from "../db/tasks";
 import { createHeartbeatService, type HeartbeatServiceOptions } from "../services/heartbeat";
@@ -98,6 +101,7 @@ export function createApp(opts: AppOptions = {}): {
   app.use(createCorsMiddleware());
   app.use(requestId);
   app.use(requestLogger);
+  app.use(versioningMiddleware);
 
   // ── Response compression ────────────────────────────────────────────────────
   // Applied early so that all downstream route handlers benefit automatically.
@@ -135,7 +139,22 @@ export function createApp(opts: AppOptions = {}): {
   });
 
   // ── Task routes ────────────────────────────────────────────────────────────
-  app.use("/api/tasks", createTasksRouter(dispatch, releasePayment));
+  // Create version-specific routers
+  const v1TasksRouter = createV1TasksRouter(dispatch, releasePayment);
+  const v2TasksRouter = createV2TasksRouter(dispatch, releasePayment);
+  
+  // Version-specific task routing based on negotiated API version
+  app.use("/api/tasks", (req, res, next) => {
+    const apiVersion = res.locals.apiVersion || "1.0";
+    
+    // Route to version-specific handler based on negotiated version
+    if (apiVersion.startsWith("1.")) {
+      return v1TasksRouter(req, res, next);
+    } else {
+      // Default to v2 for version 2.0 and above
+      return v2TasksRouter(req, res, next);
+    }
+  });
 
   // ── Payment reconciliation routes ──────────────────────────────────────────
   app.use("/api/reconciliation", createReconciliationRouter(opts.reconciliation));
