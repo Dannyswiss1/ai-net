@@ -9,6 +9,7 @@ import { SendXLMForm } from '../components/wallet/SendXLMForm'
 import { TransactionTable } from '../components/wallet/TransactionTable'
 import { WalletWizard } from '../components/wallet/WalletWizard'
 import { Skeleton, SkeletonAvatar, SkeletonCard, SkeletonText } from '../components/common/Skeleton'
+import { WalletWizard } from '../components/wallet/WalletWizard'
 import styles from './WalletPage.module.css'
 
 const STELLAR_EXPLORER = 'https://stellar.expert/explorer/testnet'
