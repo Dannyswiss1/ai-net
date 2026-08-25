@@ -23,12 +23,13 @@ describe('versioningMiddleware', () => {
   beforeEach(() => {
     // Reset mocks before each test
     jest.clearAllMocks();
-    
+
     // Set default config for testing
     process.env.API_LATEST_VERSION = '2.0';
     process.env.API_SUPPORTED_VERSIONS = '1.0,1.1,2.0';
+    process.env.API_DEFAULT_VERSION = '1.0';
     process.env.API_V1_SUNSET_DATE = '2024-12-31';
-    
+
     // Reload config to pick up env changes
     loadConfig();
   });
@@ -37,18 +38,20 @@ describe('versioningMiddleware', () => {
     // Clean up env vars
     delete process.env.API_LATEST_VERSION;
     delete process.env.API_SUPPORTED_VERSIONS;
+    delete process.env.API_DEFAULT_VERSION;
     delete process.env.API_V1_SUNSET_DATE;
   });
 
-  it('should default to latest version when API-Version header is omitted', () => {
+  it('should default to configured default version when API-Version header is omitted', () => {
     const req = mockRequest();
     const res = mockResponse();
-    
+
     versioningMiddleware(req as Request, res as Response, mockNext);
-    
-    expect(res.locals?.apiVersion).toBe('2.0');
-    expect(res.setHeader).toHaveBeenCalledWith('X-API-Version', '2.0');
-    expect(res.setHeader).not.toHaveBeenCalledWith('Deprecation', 'true');
+
+    expect(res.locals?.apiVersion).toBe('1.0');
+    expect(res.setHeader).toHaveBeenCalledWith('X-API-Version', '1.0');
+    expect(res.setHeader).toHaveBeenCalledWith('Deprecation', 'true');
+    expect(res.setHeader).toHaveBeenCalledWith('Sunset', '2024-12-31');
     expect(mockNext).toHaveBeenCalled();
   });
 
@@ -122,14 +125,29 @@ describe('versioningMiddleware', () => {
   it('should handle missing sunset date gracefully', () => {
     delete process.env.API_V1_SUNSET_DATE;
     loadConfig();
-    
+
     const req = mockRequest({ 'api-version': '1.0' });
     const res = mockResponse();
-    
+
     versioningMiddleware(req as Request, res as Response, mockNext);
-    
+
     expect(res.setHeader).toHaveBeenCalledWith('Deprecation', 'true');
     expect(res.setHeader).not.toHaveBeenCalledWith('Sunset', expect.any(String));
+  });
+
+  it('should use configured default version when set to 2.0', () => {
+    process.env.API_DEFAULT_VERSION = '2.0';
+    loadConfig();
+
+    const req = mockRequest();
+    const res = mockResponse();
+
+    versioningMiddleware(req as Request, res as Response, mockNext);
+
+    expect(res.locals?.apiVersion).toBe('2.0');
+    expect(res.setHeader).toHaveBeenCalledWith('X-API-Version', '2.0');
+    expect(res.setHeader).not.toHaveBeenCalledWith('Deprecation', 'true');
+    expect(mockNext).toHaveBeenCalled();
   });
 });
 

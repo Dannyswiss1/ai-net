@@ -6,7 +6,7 @@ import { getConfig } from '../../config';
  *
  * ### Version Negotiation
  * - Clients specify their desired API version via the `API-Version` header (e.g., "1.0", "1.1", "2.0")
- * - If the header is omitted, defaults to the latest version
+ * - If the header is omitted, defaults to the configured default version (typically "1.0" for backward compatibility)
  * - Invalid or unsupported versions return a 400 error
  *
  * ### Response Headers
@@ -22,12 +22,14 @@ export function versioningMiddleware(req: Request, res: Response, next: NextFunc
   // Use default values if config is not loaded yet (e.g., during tests)
   let supportedVersions = ['1.0', '1.1', '2.0'];
   let latestVersion = '2.0';
+  let defaultVersion = '1.0';
   let sunsetDate: string | undefined;
 
   try {
     const config = getConfig();
     supportedVersions = config.API_SUPPORTED_VERSIONS.split(',').map(v => v.trim());
     latestVersion = config.API_LATEST_VERSION;
+    defaultVersion = config.API_DEFAULT_VERSION;
     sunsetDate = config.API_V1_SUNSET_DATE;
   } catch (error) {
     // Config not loaded, use defaults - this is acceptable for tests
@@ -36,8 +38,8 @@ export function versioningMiddleware(req: Request, res: Response, next: NextFunc
   // Get client-specified version from header
   const clientVersion = req.headers['api-version'] as string | undefined;
 
-  // Default to latest version if header is omitted
-  const negotiatedVersion = clientVersion || latestVersion;
+  // Default to configured default version if header is omitted (for backward compatibility)
+  const negotiatedVersion = clientVersion || defaultVersion;
 
   // Validate the requested version
   if (!supportedVersions.includes(negotiatedVersion)) {

@@ -145,7 +145,7 @@ export function createApp(opts: AppOptions = {}): {
   
   // Version-specific task routing based on negotiated API version
   app.use("/api/tasks", (req, res, next) => {
-    const apiVersion = res.locals.apiVersion || "2.0";
+    const apiVersion = res.locals.apiVersion || "1.0";
     
     // Route to version-specific handler based on negotiated version
     if (apiVersion.startsWith("1.")) {
