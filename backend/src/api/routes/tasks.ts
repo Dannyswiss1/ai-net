@@ -56,6 +56,10 @@ const TaskListSchema = z.object({
 
 // ── Router factory ───────────────────────────────────────────────────────────
 
+/**
+ * @deprecated Use version-specific routers instead: createV1TasksRouter or createV2TasksRouter
+ * This router is kept for backward compatibility and will be removed in a future version.
+ */
 export function createTasksRouter(dispatch: DispatchFn, releasePayment: PaymentReleaseFn): Router {
   const tasksRouter = Router();
 
