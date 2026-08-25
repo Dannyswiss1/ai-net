@@ -34,6 +34,16 @@ import { createLogger } from "../utils/logger";
 import { createTaskDb, getTaskDb } from "../db/tasks";
 import { createHeartbeatService, type HeartbeatServiceOptions } from "../services/heartbeat";
 import { openapiSpec } from "./docs/openapi";
+import { createTaskJobHandler } from "../coordinator/coordinator";
+import {
+  getGlobalJobQueue,
+  createJobStore,
+  getJobDb,
+  closeJobDb,
+  JobWorker,
+  type JobQueue,
+} from "../queue";
+import { createAdminQueueRouter } from "./routes/admin";
 
 export interface AppOptions {
   /** Called to execute a single DAG node; defaults to HTTP dispatch via agent registry */
@@ -64,6 +74,12 @@ export interface AppOptions {
   reconciliation?: ReconciliationRouterOptions;
   /** Disable response compression (useful in tests). Default: false. */
   disableCompression?: boolean;
+  /** Custom job queue instance */
+  queue?: JobQueue;
+  /** Custom job worker instance */
+  jobWorker?: JobWorker;
+  /** Enable background queue worker (default: true) */
+  enableQueueWorker?: boolean;
 }
 
 /**
@@ -110,6 +126,20 @@ export function createApp(opts: AppOptions = {}): {
   const releasePayment: PaymentReleaseFn =
     opts.releasePayment ?? createPaymentReleaseFn(tryLoadStellarRelease());
 
+  // ── Background Job Queue & Worker ──────────────────────────────────────────
+  const jobQueue = opts.queue ?? getGlobalJobQueue();
+  const jobWorker =
+    opts.jobWorker ??
+    new JobWorker({
+      jobStore: jobQueue.getStore(),
+      handler: createTaskJobHandler(dispatch, releasePayment),
+    });
+  jobQueue.setWorker(jobWorker);
+
+  if (opts.enableQueueWorker !== false) {
+    jobWorker.start();
+  }
+
   // ── Heartbeat Background Cleanup Service ────────────────────────────────────
   const heartbeatService = createHeartbeatService(opts.heartbeatOptions);
   if (opts.enableHeartbeatCleanup || (opts.enableHeartbeatCleanup !== false && process.env.NODE_ENV !== "test")) {
@@ -135,12 +165,16 @@ export function createApp(opts: AppOptions = {}): {
   });
 
   // ── Task routes ────────────────────────────────────────────────────────────
-  app.use("/api/tasks", createTasksRouter(dispatch, releasePayment));
+  app.use("/api/tasks", createTasksRouter(dispatch, releasePayment, jobQueue));
+
+  // ── Admin Queue routes ─────────────────────────────────────────────────────
+  app.use("/api/admin/queue", createAdminQueueRouter(jobQueue));
+  app.use("/api/admin", createAdminQueueRouter(jobQueue));
 
   // ── Payment reconciliation routes ──────────────────────────────────────────
   app.use("/api/reconciliation", createReconciliationRouter(opts.reconciliation));
 
-  // ── HTTP server ────────────────────────────────────────────────────────────
+  // ── HTTP server ────────────────────────────────────────────────────
   const httpServer = createServer(app);
 
   // ── Event persistence ──────────────────────────────────────────────────────
@@ -164,6 +198,7 @@ export function createApp(opts: AppOptions = {}): {
   app.use(errorHandler);
 
   function close(callback?: () => void): void {
+    jobWorker.stop();
     heartbeatService.stop();
     detachStream();
     httpServer.close(callback);

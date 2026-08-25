@@ -2,10 +2,11 @@ import type pino from 'pino';
 import type { AgentRegistration, AgentRegistry } from '../types/agent';
 import type { PaymentService } from '../types/payment';
 import { eventBus } from './eventBus';
-import { updateNode, updateTask } from './taskStore';
+import { updateNode, updateTask, getTask } from './taskStore';
 import type { DAGNode, Task } from '../types/task';
 import { createLogger } from '../utils/logger';
 import { tracingService } from '../services/tracing';
+import type { Job } from '../queue/jobStore';
 
 const DEFAULT_CONCURRENCY = 3;
 const DEFAULT_TIMEOUT_MS = 30_000;
@@ -105,13 +106,37 @@ export class Coordinator {
     this.correlationId = options.correlationId ?? '';
   }
 
-  async executeDAG(taskId: string, dag: DAGNode[]): Promise<void> {
+  async executeDAG(
+    taskId: string,
+    dag: DAGNode[],
+    onProgress?: (percentage: number) => void
+  ): Promise<void> {
     const completed = new Set<string>();
     const failed = new Set<string>();
     const scheduled = new Set<string>();
+
+    // Account for any nodes that were already completed in a previous attempt
+    for (const node of dag) {
+      if (node.status === 'completed') {
+        completed.add(node.nodeId);
+        scheduled.add(node.nodeId);
+      }
+    }
+
     const nodeById = new Map(dag.map(node => [node.nodeId, node]));
     let inFlight = 0;
     let settled = false;
+
+    const reportProgress = () => {
+      if (dag.length === 0) {
+        onProgress?.(100);
+        return;
+      }
+      const pct = Math.round((completed.size / dag.length) * 100);
+      onProgress?.(pct);
+    };
+
+    reportProgress();
 
     this.log.info({ taskId, totalNodes: dag.length }, 'DAG execution started');
 
@@ -132,6 +157,9 @@ export class Coordinator {
 
         const status = failed.size === 0 ? 'completed' : 'failed';
         updateTaskIfPresent(taskId, { status, dag });
+        if (status === 'completed') {
+          onProgress?.(100);
+        }
         this.bus.emit(taskId, {
           type: status === 'completed' ? 'task_completed' : 'task_failed',
           taskId,
@@ -207,8 +235,12 @@ export class Coordinator {
           inFlight += 1;
           this.limiter.run(() => this.runNode(taskId, node, nodeById))
             .then(status => {
-              if (status === 'completed') completed.add(node.nodeId);
-              else failed.add(node.nodeId);
+              if (status === 'completed') {
+                completed.add(node.nodeId);
+                reportProgress();
+              } else {
+                failed.add(node.nodeId);
+              }
             })
             .catch(err => {
               console.error('[coordinator] runNode threw unexpectedly:', err);
@@ -432,7 +464,8 @@ export class Coordinator {
 export async function executeDAG(
   task: Task,
   dispatch: DispatchFn,
-  releasePayment: PaymentReleaseFn
+  releasePayment: PaymentReleaseFn,
+  onProgress?: (percentage: number) => void
 ): Promise<void> {
   const log = createLogger({ taskId: task.id, requestId: task.requestId });
 
@@ -442,7 +475,48 @@ export async function executeDAG(
     logger: log,
   });
 
-  await coordinator.executeDAG(task.id, task.dag);
+  await coordinator.executeDAG(task.id, task.dag, onProgress);
+}
+
+/**
+ * Creates a job handler function suitable for JobWorker to execute tasks
+ * from the background job queue.
+ */
+export function createTaskJobHandler(
+  dispatch: DispatchFn,
+  releasePayment: PaymentReleaseFn
+): (job: Job, updateProgress: (percentage: number) => void) => Promise<void> {
+  return async (job: Job, updateProgress: (percentage: number) => void) => {
+    const task = getTask(job.taskId);
+    if (!task) {
+      throw new Error(`Task ${job.taskId} not found for job ${job.id}`);
+    }
+
+    if (task.status === "cancelled") {
+      return;
+    }
+
+    // Reset any failed nodes from a previous attempt so retry executes them
+    let hasReset = false;
+    for (const node of task.dag) {
+      if (node.status === "failed") {
+        node.status = "pending";
+        node.error = undefined;
+        hasReset = true;
+      }
+    }
+    if (hasReset) {
+      updateTaskIfPresent(task.id, { dag: task.dag });
+    }
+
+    await executeDAG(task, dispatch, releasePayment, updateProgress);
+
+    const refreshedTask = getTask(job.taskId);
+    if (refreshedTask && refreshedTask.status === "failed") {
+      const firstErrorNode = refreshedTask.dag.find((n) => n.status === "failed");
+      throw new Error(firstErrorNode?.error || "Task execution failed");
+    }
+  };
 }
 
 function updateTaskIfPresent(taskId: string, patch: Partial<Task>): void {
@@ -452,3 +526,4 @@ function updateTaskIfPresent(taskId: string, patch: Partial<Task>): void {
     // Unit tests can exercise the coordinator without creating a task first.
   }
 }
+
