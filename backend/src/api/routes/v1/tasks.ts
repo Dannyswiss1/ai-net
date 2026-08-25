@@ -10,6 +10,8 @@ import { createLogger } from "../../../utils/logger";
 import { validate } from "../../middleware/validate";
 import { rateLimitMiddleware } from "../../middleware/rateLimit";
 
+import { getGlobalJobQueue, type JobQueue, type JobPriority } from "../../../queue";
+
 // ── Validation config ────────────────────────────────────────────────────────
 const MAX_PROMPT_LENGTH = Number(process.env.MAX_PROMPT_LENGTH ?? 10_000);
 const DAILY_TASK_LIMIT = Number(process.env.DAILY_TASK_LIMIT_PER_WALLET ?? 100);
@@ -25,6 +27,7 @@ export const createTaskSchema = z.object({
   walletPublicKey: z.string().optional(),
   maxBudgetXLM: z.number().min(0.1).optional().default(1),
   agentPreferences: z.array(z.string()).optional(),
+  priority: z.enum(["low", "normal", "high", "critical"]).optional().default("normal"),
 });
 
 const TaskListSchema = z.object({
@@ -39,12 +42,17 @@ const TaskListSchema = z.object({
  * Creates a v1 tasks router with the original API response format.
  * This maintains backward compatibility for clients using API version 1.x.
  */
-export function createV1TasksRouter(dispatch: DispatchFn, releasePayment: PaymentReleaseFn): Router {
+export function createV1TasksRouter(
+  dispatch: DispatchFn,
+  releasePayment: PaymentReleaseFn,
+  queue?: JobQueue
+): Router {
   const tasksRouter = Router();
+  const jobQueue = queue ?? getGlobalJobQueue();
 
   // POST /api/tasks — v1 format
   tasksRouter.post("/", rateLimitMiddleware, validate(createTaskSchema), (req: Request, res: Response): void => {
-    const { prompt } = req.body as z.infer<typeof createTaskSchema>;
+    const { prompt, priority } = req.body as z.infer<typeof createTaskSchema>;
     const walletPublicKey: string =
       (req.body as z.infer<typeof createTaskSchema>).walletPublicKey ??
       (req.headers["walletpublickey"] as string | undefined) ??
@@ -80,12 +88,11 @@ export function createV1TasksRouter(dispatch: DispatchFn, releasePayment: Paymen
 
     createTask(task);
 
-    const log = createLogger({ taskId });
-
-    setImmediate(() => {
-      executeDAG(getTask(taskId)!, dispatch, releasePayment).catch((err) => {
-        log.error({ err }, "DAG execution error");
-      });
+    jobQueue.enqueue({
+      taskId: task.id,
+      type: "execute_task",
+      priority: (priority as JobPriority) ?? "normal",
+      payload: { taskId: task.id },
     });
 
     // v1 response format - simple response without additional metadata
