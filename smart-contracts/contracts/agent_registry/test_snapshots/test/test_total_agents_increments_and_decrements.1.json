@@ -1,9 +1,93 @@
 {
   "generators": {
-    "address": 4,
+    "address": 2,
     "nonce": 0
   },
   "auth": [
+    [],
+    [],
+    [
+      [
+        "CAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAFCT4",
+        {
+          "function": {
+            "contract_fn": {
+              "contract_address": "CAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAD2KM",
+              "function_name": "register_agent",
+              "args": [
+                {
+                  "map": [
+                    {
+                      "key": {
+                        "symbol": "bond_amount"
+                      },
+                      "val": {
+                        "i128": {
+                          "hi": 0,
+                          "lo": 100000000
+                        }
+                      }
+                    },
+                    {
+                      "key": {
+                        "symbol": "capability"
+                      },
+                      "val": {
+                        "symbol": "research"
+                      }
+                    },
+                    {
+                      "key": {
+                        "symbol": "endpoint"
+                      },
+                      "val": {
+                        "string": "https://agent.example.com"
+                      }
+                    },
+                    {
+                      "key": {
+                        "symbol": "id"
+                      },
+                      "val": {
+                        "symbol": "ag1"
+                      }
+                    },
+                    {
+                      "key": {
+                        "symbol": "metadata"
+                      },
+                      "val": {
+                        "map": []
+                      }
+                    },
+                    {
+                      "key": {
+                        "symbol": "owner"
+                      },
+                      "val": {
+                        "address": "CAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAFCT4"
+                      }
+                    },
+                    {
+                      "key": {
+                        "symbol": "price_stroops"
+                      },
+                      "val": {
+                        "i128": {
+                          "hi": 0,
+                          "lo": 1000
+                        }
+                      }
+                    }
+                  ]
+                }
+              ]
+            }
+          },
+          "sub_invocations": []
+        }
+      ]
+    ],
     [],
     [
       [
@@ -50,7 +134,7 @@
                             "symbol": "id"
                           },
                           "val": {
-                            "symbol": "b1"
+                            "symbol": "ag2"
                           }
                         },
                         {
@@ -100,72 +184,6 @@
                             "symbol": "capability"
                           },
                           "val": {
-                            "symbol": "research"
-                          }
-                        },
-                        {
-                          "key": {
-                            "symbol": "endpoint"
-                          },
-                          "val": {
-                            "string": "https://agent.example.com"
-                          }
-                        },
-                        {
-                          "key": {
-                            "symbol": "id"
-                          },
-                          "val": {
-                            "symbol": "b2"
-                          }
-                        },
-                        {
-                          "key": {
-                            "symbol": "metadata"
-                          },
-                          "val": {
-                            "map": []
-                          }
-                        },
-                        {
-                          "key": {
-                            "symbol": "owner"
-                          },
-                          "val": {
-                            "address": "CAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAHK3M"
-                          }
-                        },
-                        {
-                          "key": {
-                            "symbol": "price_stroops"
-                          },
-                          "val": {
-                            "i128": {
-                              "hi": 0,
-                              "lo": 1000
-                            }
-                          }
-                        }
-                      ]
-                    },
-                    {
-                      "map": [
-                        {
-                          "key": {
-                            "symbol": "bond_amount"
-                          },
-                          "val": {
-                            "i128": {
-                              "hi": 0,
-                              "lo": 100000000
-                            }
-                          }
-                        },
-                        {
-                          "key": {
-                            "symbol": "capability"
-                          },
-                          "val": {
                             "symbol": "coding"
                           }
                         },
@@ -182,91 +200,7 @@
                             "symbol": "id"
                           },
                           "val": {
-                            "symbol": "b3"
-                          }
-                        },
-                        {
-                          "key": {
-                            "symbol": "metadata"
-                          },
-                          "val": {
-                            "map": []
-                          }
-                        },
-                        {
-                          "key": {
-                            "symbol": "owner"
-                          },
-                          "val": {
-                            "address": "CAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAITA4"
-                          }
-                        },
-                        {
-                          "key": {
-                            "symbol": "price_stroops"
-                          },
-                          "val": {
-                            "i128": {
-                              "hi": 0,
-                              "lo": 1000
-                            }
-                          }
-                        }
-                      ]
-                    }
-                  ]
-                }
-              ]
-            }
-          },
-          "sub_invocations": []
-        }
-      ],
-      [
-        "CAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAHK3M",
-        {
-          "function": {
-            "contract_fn": {
-              "contract_address": "CAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAD2KM",
-              "function_name": "register_agents",
-              "args": [
-                {
-                  "vec": [
-                    {
-                      "map": [
-                        {
-                          "key": {
-                            "symbol": "bond_amount"
-                          },
-                          "val": {
-                            "i128": {
-                              "hi": 0,
-                              "lo": 100000000
-                            }
-                          }
-                        },
-                        {
-                          "key": {
-                            "symbol": "capability"
-                          },
-                          "val": {
-                            "symbol": "research"
-                          }
-                        },
-                        {
-                          "key": {
-                            "symbol": "endpoint"
-                          },
-                          "val": {
-                            "string": "https://agent.example.com"
-                          }
-                        },
-                        {
-                          "key": {
-                            "symbol": "id"
-                          },
-                          "val": {
-                            "symbol": "b1"
+                            "symbol": "ag3"
                           }
                         },
                         {
@@ -283,354 +217,6 @@
                           },
                           "val": {
                             "address": "CAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAFCT4"
-                          }
-                        },
-                        {
-                          "key": {
-                            "symbol": "price_stroops"
-                          },
-                          "val": {
-                            "i128": {
-                              "hi": 0,
-                              "lo": 1000
-                            }
-                          }
-                        }
-                      ]
-                    },
-                    {
-                      "map": [
-                        {
-                          "key": {
-                            "symbol": "bond_amount"
-                          },
-                          "val": {
-                            "i128": {
-                              "hi": 0,
-                              "lo": 100000000
-                            }
-                          }
-                        },
-                        {
-                          "key": {
-                            "symbol": "capability"
-                          },
-                          "val": {
-                            "symbol": "research"
-                          }
-                        },
-                        {
-                          "key": {
-                            "symbol": "endpoint"
-                          },
-                          "val": {
-                            "string": "https://agent.example.com"
-                          }
-                        },
-                        {
-                          "key": {
-                            "symbol": "id"
-                          },
-                          "val": {
-                            "symbol": "b2"
-                          }
-                        },
-                        {
-                          "key": {
-                            "symbol": "metadata"
-                          },
-                          "val": {
-                            "map": []
-                          }
-                        },
-                        {
-                          "key": {
-                            "symbol": "owner"
-                          },
-                          "val": {
-                            "address": "CAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAHK3M"
-                          }
-                        },
-                        {
-                          "key": {
-                            "symbol": "price_stroops"
-                          },
-                          "val": {
-                            "i128": {
-                              "hi": 0,
-                              "lo": 1000
-                            }
-                          }
-                        }
-                      ]
-                    },
-                    {
-                      "map": [
-                        {
-                          "key": {
-                            "symbol": "bond_amount"
-                          },
-                          "val": {
-                            "i128": {
-                              "hi": 0,
-                              "lo": 100000000
-                            }
-                          }
-                        },
-                        {
-                          "key": {
-                            "symbol": "capability"
-                          },
-                          "val": {
-                            "symbol": "coding"
-                          }
-                        },
-                        {
-                          "key": {
-                            "symbol": "endpoint"
-                          },
-                          "val": {
-                            "string": "https://agent.example.com"
-                          }
-                        },
-                        {
-                          "key": {
-                            "symbol": "id"
-                          },
-                          "val": {
-                            "symbol": "b3"
-                          }
-                        },
-                        {
-                          "key": {
-                            "symbol": "metadata"
-                          },
-                          "val": {
-                            "map": []
-                          }
-                        },
-                        {
-                          "key": {
-                            "symbol": "owner"
-                          },
-                          "val": {
-                            "address": "CAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAITA4"
-                          }
-                        },
-                        {
-                          "key": {
-                            "symbol": "price_stroops"
-                          },
-                          "val": {
-                            "i128": {
-                              "hi": 0,
-                              "lo": 1000
-                            }
-                          }
-                        }
-                      ]
-                    }
-                  ]
-                }
-              ]
-            }
-          },
-          "sub_invocations": []
-        }
-      ],
-      [
-        "CAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAITA4",
-        {
-          "function": {
-            "contract_fn": {
-              "contract_address": "CAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAD2KM",
-              "function_name": "register_agents",
-              "args": [
-                {
-                  "vec": [
-                    {
-                      "map": [
-                        {
-                          "key": {
-                            "symbol": "bond_amount"
-                          },
-                          "val": {
-                            "i128": {
-                              "hi": 0,
-                              "lo": 100000000
-                            }
-                          }
-                        },
-                        {
-                          "key": {
-                            "symbol": "capability"
-                          },
-                          "val": {
-                            "symbol": "research"
-                          }
-                        },
-                        {
-                          "key": {
-                            "symbol": "endpoint"
-                          },
-                          "val": {
-                            "string": "https://agent.example.com"
-                          }
-                        },
-                        {
-                          "key": {
-                            "symbol": "id"
-                          },
-                          "val": {
-                            "symbol": "b1"
-                          }
-                        },
-                        {
-                          "key": {
-                            "symbol": "metadata"
-                          },
-                          "val": {
-                            "map": []
-                          }
-                        },
-                        {
-                          "key": {
-                            "symbol": "owner"
-                          },
-                          "val": {
-                            "address": "CAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAFCT4"
-                          }
-                        },
-                        {
-                          "key": {
-                            "symbol": "price_stroops"
-                          },
-                          "val": {
-                            "i128": {
-                              "hi": 0,
-                              "lo": 1000
-                            }
-                          }
-                        }
-                      ]
-                    },
-                    {
-                      "map": [
-                        {
-                          "key": {
-                            "symbol": "bond_amount"
-                          },
-                          "val": {
-                            "i128": {
-                              "hi": 0,
-                              "lo": 100000000
-                            }
-                          }
-                        },
-                        {
-                          "key": {
-                            "symbol": "capability"
-                          },
-                          "val": {
-                            "symbol": "research"
-                          }
-                        },
-                        {
-                          "key": {
-                            "symbol": "endpoint"
-                          },
-                          "val": {
-                            "string": "https://agent.example.com"
-                          }
-                        },
-                        {
-                          "key": {
-                            "symbol": "id"
-                          },
-                          "val": {
-                            "symbol": "b2"
-                          }
-                        },
-                        {
-                          "key": {
-                            "symbol": "metadata"
-                          },
-                          "val": {
-                            "map": []
-                          }
-                        },
-                        {
-                          "key": {
-                            "symbol": "owner"
-                          },
-                          "val": {
-                            "address": "CAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAHK3M"
-                          }
-                        },
-                        {
-                          "key": {
-                            "symbol": "price_stroops"
-                          },
-                          "val": {
-                            "i128": {
-                              "hi": 0,
-                              "lo": 1000
-                            }
-                          }
-                        }
-                      ]
-                    },
-                    {
-                      "map": [
-                        {
-                          "key": {
-                            "symbol": "bond_amount"
-                          },
-                          "val": {
-                            "i128": {
-                              "hi": 0,
-                              "lo": 100000000
-                            }
-                          }
-                        },
-                        {
-                          "key": {
-                            "symbol": "capability"
-                          },
-                          "val": {
-                            "symbol": "coding"
-                          }
-                        },
-                        {
-                          "key": {
-                            "symbol": "endpoint"
-                          },
-                          "val": {
-                            "string": "https://agent.example.com"
-                          }
-                        },
-                        {
-                          "key": {
-                            "symbol": "id"
-                          },
-                          "val": {
-                            "symbol": "b3"
-                          }
-                        },
-                        {
-                          "key": {
-                            "symbol": "metadata"
-                          },
-                          "val": {
-                            "map": []
-                          }
-                        },
-                        {
-                          "key": {
-                            "symbol": "owner"
-                          },
-                          "val": {
-                            "address": "CAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAITA4"
                           }
                         },
                         {
@@ -656,6 +242,25 @@
       ]
     ],
     [],
+    [
+      [
+        "CAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAFCT4",
+        {
+          "function": {
+            "contract_fn": {
+              "contract_address": "CAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAD2KM",
+              "function_name": "deregister_agent",
+              "args": [
+                {
+                  "symbol": "ag1"
+                }
+              ]
+            }
+          },
+          "sub_invocations": []
+        }
+      ]
+    ],
     []
   ],
   "ledger": {
@@ -678,7 +283,7 @@
                   "symbol": "Agent"
                 },
                 {
-                  "symbol": "b1"
+                  "symbol": "ag2"
                 }
               ]
             },
@@ -698,7 +303,7 @@
                       "symbol": "Agent"
                     },
                     {
-                      "symbol": "b1"
+                      "symbol": "ag2"
                     }
                   ]
                 },
@@ -737,7 +342,7 @@
                         "symbol": "id"
                       },
                       "val": {
-                        "symbol": "b1"
+                        "symbol": "ag2"
                       }
                     },
                     {
@@ -786,7 +391,7 @@
                   "symbol": "Agent"
                 },
                 {
-                  "symbol": "b2"
+                  "symbol": "ag3"
                 }
               ]
             },
@@ -806,115 +411,7 @@
                       "symbol": "Agent"
                     },
                     {
-                      "symbol": "b2"
-                    }
-                  ]
-                },
-                "durability": "persistent",
-                "val": {
-                  "map": [
-                    {
-                      "key": {
-                        "symbol": "bond_amount"
-                      },
-                      "val": {
-                        "i128": {
-                          "hi": 0,
-                          "lo": 100000000
-                        }
-                      }
-                    },
-                    {
-                      "key": {
-                        "symbol": "capability"
-                      },
-                      "val": {
-                        "symbol": "research"
-                      }
-                    },
-                    {
-                      "key": {
-                        "symbol": "endpoint"
-                      },
-                      "val": {
-                        "string": "https://agent.example.com"
-                      }
-                    },
-                    {
-                      "key": {
-                        "symbol": "id"
-                      },
-                      "val": {
-                        "symbol": "b2"
-                      }
-                    },
-                    {
-                      "key": {
-                        "symbol": "metadata"
-                      },
-                      "val": {
-                        "map": []
-                      }
-                    },
-                    {
-                      "key": {
-                        "symbol": "owner"
-                      },
-                      "val": {
-                        "address": "CAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAHK3M"
-                      }
-                    },
-                    {
-                      "key": {
-                        "symbol": "price_stroops"
-                      },
-                      "val": {
-                        "i128": {
-                          "hi": 0,
-                          "lo": 1000
-                        }
-                      }
-                    }
-                  ]
-                }
-              }
-            },
-            "ext": "v0"
-          },
-          535680
-        ]
-      ],
-      [
-        {
-          "contract_data": {
-            "contract": "CAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAD2KM",
-            "key": {
-              "vec": [
-                {
-                  "symbol": "Agent"
-                },
-                {
-                  "symbol": "b3"
-                }
-              ]
-            },
-            "durability": "persistent"
-          }
-        },
-        [
-          {
-            "last_modified_ledger_seq": 0,
-            "data": {
-              "contract_data": {
-                "ext": "v0",
-                "contract": "CAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAD2KM",
-                "key": {
-                  "vec": [
-                    {
-                      "symbol": "Agent"
-                    },
-                    {
-                      "symbol": "b3"
+                      "symbol": "ag3"
                     }
                   ]
                 },
@@ -953,7 +450,7 @@
                         "symbol": "id"
                       },
                       "val": {
-                        "symbol": "b3"
+                        "symbol": "ag3"
                       }
                     },
                     {
@@ -969,7 +466,7 @@
                         "symbol": "owner"
                       },
                       "val": {
-                        "address": "CAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAITA4"
+                        "address": "CAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAFCT4"
                       }
                     },
                     {
@@ -981,6 +478,79 @@
                           "hi": 0,
                           "lo": 1000
                         }
+                      }
+                    }
+                  ]
+                }
+              }
+            },
+            "ext": "v0"
+          },
+          535680
+        ]
+      ],
+      [
+        {
+          "contract_data": {
+            "contract": "CAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAD2KM",
+            "key": {
+              "vec": [
+                {
+                  "symbol": "BondCooldown"
+                },
+                {
+                  "symbol": "ag1"
+                }
+              ]
+            },
+            "durability": "persistent"
+          }
+        },
+        [
+          {
+            "last_modified_ledger_seq": 0,
+            "data": {
+              "contract_data": {
+                "ext": "v0",
+                "contract": "CAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAD2KM",
+                "key": {
+                  "vec": [
+                    {
+                      "symbol": "BondCooldown"
+                    },
+                    {
+                      "symbol": "ag1"
+                    }
+                  ]
+                },
+                "durability": "persistent",
+                "val": {
+                  "map": [
+                    {
+                      "key": {
+                        "symbol": "bond_amount"
+                      },
+                      "val": {
+                        "i128": {
+                          "hi": 0,
+                          "lo": 100000000
+                        }
+                      }
+                    },
+                    {
+                      "key": {
+                        "symbol": "expiry_ledger"
+                      },
+                      "val": {
+                        "u32": 17280
+                      }
+                    },
+                    {
+                      "key": {
+                        "symbol": "owner"
+                      },
+                      "val": {
+                        "address": "CAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAFCT4"
                       }
                     }
                   ]
@@ -1030,7 +600,7 @@
                 "val": {
                   "vec": [
                     {
-                      "symbol": "b3"
+                      "symbol": "ag3"
                     }
                   ]
                 }
@@ -1079,10 +649,7 @@
                 "val": {
                   "vec": [
                     {
-                      "symbol": "b1"
-                    },
-                    {
-                      "symbol": "b2"
+                      "symbol": "ag2"
                     }
                   ]
                 }
@@ -1125,7 +692,7 @@
                           ]
                         },
                         "val": {
-                          "u32": 3
+                          "u32": 2
                         }
                       }
                     ]
@@ -1174,40 +741,7 @@
       [
         {
           "contract_data": {
-            "contract": "CAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAHK3M",
-            "key": {
-              "ledger_key_nonce": {
-                "nonce": 5541220902715666415
-              }
-            },
-            "durability": "temporary"
-          }
-        },
-        [
-          {
-            "last_modified_ledger_seq": 0,
-            "data": {
-              "contract_data": {
-                "ext": "v0",
-                "contract": "CAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAHK3M",
-                "key": {
-                  "ledger_key_nonce": {
-                    "nonce": 5541220902715666415
-                  }
-                },
-                "durability": "temporary",
-                "val": "void"
-              }
-            },
-            "ext": "v0"
-          },
-          6311999
-        ]
-      ],
-      [
-        {
-          "contract_data": {
-            "contract": "CAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAITA4",
+            "contract": "CAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAFCT4",
             "key": {
               "ledger_key_nonce": {
                 "nonce": 1033654523790656264
@@ -1222,10 +756,43 @@
             "data": {
               "contract_data": {
                 "ext": "v0",
-                "contract": "CAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAITA4",
+                "contract": "CAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAFCT4",
                 "key": {
                   "ledger_key_nonce": {
                     "nonce": 1033654523790656264
+                  }
+                },
+                "durability": "temporary",
+                "val": "void"
+              }
+            },
+            "ext": "v0"
+          },
+          6311999
+        ]
+      ],
+      [
+        {
+          "contract_data": {
+            "contract": "CAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAFCT4",
+            "key": {
+              "ledger_key_nonce": {
+                "nonce": 5541220902715666415
+              }
+            },
+            "durability": "temporary"
+          }
+        },
+        [
+          {
+            "last_modified_ledger_seq": 0,
+            "data": {
+              "contract_data": {
+                "ext": "v0",
+                "contract": "CAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAFCT4",
+                "key": {
+                  "ledger_key_nonce": {
+                    "nonce": 5541220902715666415
                   }
                 },
                 "durability": "temporary",
