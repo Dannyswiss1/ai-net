@@ -32,16 +32,27 @@
 //! Callers inspect the returned `Vec<BatchResult>` / `Vec<VoidBatchResult>`:
 //! all-success means the batch committed; any failure means **no** writes occurred.
 
+mod errors;
 mod events;
+mod types;
+
+pub use errors::Error;
+pub use types::*;
 
 use events::{
     AdminChangedEvent, AgentDeregisteredEvent, AgentRegisteredEvent, ErrorReportedEvent,
-    ErrorResolvedEvent, RegistryInitializedEvent,
+    ErrorResolvedEvent, OperationApproved, OperationCancelled, OperationExecuted,
+    OperationProposed, RegistryInitializedEvent,
 };
 use soroban_sdk::{
     contract, contractimpl, contracttype, symbol_short, Address, BytesN, Env, Map, String, Symbol,
     Val, Vec,
 };
+
+/// Default timelock delay in seconds (24 hours = 86,400 seconds).
+pub const DEFAULT_TIMELOCK_DELAY: u64 = 86_400;
+/// Default proposal validity period in seconds (7 days = 604,800 seconds).
+pub const DEFAULT_PROPOSAL_EXPIRY: u64 = 604_800;
 
 #[allow(dead_code)]
 const MAX_AGENT_ID: u32 = 64;
@@ -192,6 +203,9 @@ pub enum DataKey {
     /// Ledger number at which the cooldown expires for a deregistering agent.
     /// Key present ⟺ the agent is in the cooldown window.
     BondCooldown(Symbol),
+    MultisigConfig,
+    Proposal(u64),
+    ProposalIdSequence,
 }
 
 /// Per-item outcome for batch registration (`Ok(agent_id)` / `Err(code)`).
@@ -216,77 +230,7 @@ pub enum VoidBatchResult {
     Err(u32),
 }
 
-#[contracttype]
-#[derive(Copy, Clone, Debug, Eq, PartialEq, PartialOrd, Ord)]
-#[repr(u32)]
-pub enum Error {
-    NotFound = 1,
-    Unauthorized = 2,
-    AlreadyExists = 3,
-    ContractPaused = 4,
-    AgentFrozen = 5,
-    NotAdmin = 6,
-    AlreadyResolved = 7,
-    DuplicateInBatch = 8,
-    InvalidRecord = 9,
-    /// Bond supplied at registration is below the contract minimum.
-    InsufficientBond = 10,
-    /// Bond return attempted before the 24-hour cooldown has elapsed.
-    CooldownNotElapsed = 11,
-}
 
-impl From<Error> for soroban_sdk::Error {
-    fn from(err: Error) -> Self {
-        soroban_sdk::Error::from_contract_error(err as u32)
-    }
-}
-
-impl From<soroban_sdk::Error> for Error {
-    fn from(err: soroban_sdk::Error) -> Self {
-        match err.get_code() {
-            1 => Error::NotFound,
-            2 => Error::Unauthorized,
-            3 => Error::AlreadyExists,
-            4 => Error::ContractPaused,
-            5 => Error::AgentFrozen,
-            6 => Error::NotAdmin,
-            7 => Error::AlreadyResolved,
-            8 => Error::DuplicateInBatch,
-            9 => Error::InvalidRecord,
-            10 => Error::InsufficientBond,
-            11 => Error::CooldownNotElapsed,
-            _ => Error::NotFound,
-        }
-    }
-}
-
-impl Error {
-    /// Recover the typed variant from a raw code as carried by
-    /// [`BatchResult::Err`] / [`VoidBatchResult::Err`]. Returns `None` for
-    /// codes this contract version doesn't define.
-    pub fn from_code(code: u32) -> Option<Self> {
-        match code {
-            1 => Some(Error::NotFound),
-            2 => Some(Error::Unauthorized),
-            3 => Some(Error::AlreadyExists),
-            4 => Some(Error::ContractPaused),
-            5 => Some(Error::AgentFrozen),
-            6 => Some(Error::NotAdmin),
-            7 => Some(Error::AlreadyResolved),
-            8 => Some(Error::DuplicateInBatch),
-            9 => Some(Error::InvalidRecord),
-            10 => Some(Error::InsufficientBond),
-            11 => Some(Error::CooldownNotElapsed),
-            _ => None,
-        }
-    }
-}
-
-impl<'a> From<&'a Error> for soroban_sdk::Error {
-    fn from(err: &'a Error) -> Self {
-        soroban_sdk::Error::from_contract_error(*err as u32)
-    }
-}
 #[contract]
 pub struct AgentRegistryContract;
 
@@ -370,6 +314,18 @@ fn require_not_paused(env: &Env) -> Result<(), Error> {
     Ok(())
 }
 
+fn is_admin(env: &Env, addr: &Address) -> bool {
+    if let Some(single_admin) = env.storage().instance().get::<_, Address>(&DataKey::Admin) {
+        if &single_admin == addr {
+            return true;
+        }
+    }
+    if let Some(config) = env.storage().instance().get::<_, MultisigConfig>(&DataKey::MultisigConfig) {
+        return config.admins.contains(addr);
+    }
+    false
+}
+
 fn require_admin(env: &Env) -> Result<Address, Error> {
     let admin: Address = env
         .storage()
@@ -378,6 +334,36 @@ fn require_admin(env: &Env) -> Result<Address, Error> {
         .ok_or(Error::NotAdmin)?;
     admin.require_auth();
     Ok(admin)
+}
+
+fn internal_slash_bond(env: &Env, agent_id: Symbol, penalty_stroops: i128) -> Result<(), Error> {
+    let agent_key = DataKey::Agent(agent_id.clone());
+    let mut record: AgentRecord = env
+        .storage()
+        .persistent()
+        .get(&agent_key)
+        .ok_or(Error::NotFound)?;
+
+    let remaining = if penalty_stroops >= record.bond_amount {
+        0_i128
+    } else {
+        record.bond_amount - penalty_stroops
+    };
+    let actual_penalty = record.bond_amount - remaining;
+
+    record.bond_amount = remaining;
+    env.storage().persistent().set(&agent_key, &record);
+    extend_ttl_for_key(env, &agent_key);
+
+    env.events().publish(
+        (symbol_short!("registry"), symbol_short!("bond_slsh")),
+        events::BondSlashed {
+            agent_id,
+            penalty_stroops: actual_penalty,
+            remaining_stroops: remaining,
+        },
+    );
+    Ok(())
 }
 
 fn require_not_frozen(env: &Env, agent_id: &Symbol) -> Result<(), Error> {
@@ -430,6 +416,9 @@ impl AgentRegistryContract {
     }
 
     pub fn set_admin(env: Env, new_admin: Address) -> Result<(), Error> {
+        if env.storage().instance().has(&DataKey::MultisigConfig) {
+            return Err(Error::Unauthorized);
+        }
         let old_admin = require_admin(&env)?;
         env.storage().instance().set(&DataKey::Admin, &new_admin);
 
@@ -444,6 +433,308 @@ impl AgentRegistryContract {
         );
 
         Ok(())
+    }
+
+    // ─── Multi-Signature Admin Operations ──────────────────────────────────────
+
+    pub fn set_multisig_config(
+        env: Env,
+        caller: Address,
+        admins: Vec<Address>,
+        threshold: u32,
+        timelock_delay: u64,
+    ) -> Result<(), Error> {
+        caller.require_auth();
+        if !is_admin(&env, &caller) {
+            return Err(Error::NotAdmin);
+        }
+        if threshold == 0 || threshold > admins.len() {
+            return Err(Error::InvalidThreshold);
+        }
+        let config = MultisigConfig {
+            admins,
+            threshold,
+            timelock_delay,
+        };
+        env.storage().instance().set(&DataKey::MultisigConfig, &config);
+        Ok(())
+    }
+
+    pub fn get_multisig_config(env: Env) -> Option<MultisigConfig> {
+        env.storage().instance().get(&DataKey::MultisigConfig)
+    }
+
+    pub fn propose_operation(
+        env: Env,
+        proposer: Address,
+        action: AdminAction,
+        expiry_seconds: Option<u64>,
+    ) -> Result<u64, Error> {
+        proposer.require_auth();
+        if !is_admin(&env, &proposer) {
+            return Err(Error::InvalidSigner);
+        }
+
+        let config = env
+            .storage()
+            .instance()
+            .get::<_, MultisigConfig>(&DataKey::MultisigConfig)
+            .unwrap_or_else(|| {
+                let mut default_admins = Vec::new(&env);
+                default_admins.push_back(proposer.clone());
+                MultisigConfig {
+                    admins: default_admins,
+                    threshold: 1,
+                    timelock_delay: DEFAULT_TIMELOCK_DELAY,
+                }
+            });
+
+        let mut sequence: u64 = env
+            .storage()
+            .instance()
+            .get(&DataKey::ProposalIdSequence)
+            .unwrap_or(0);
+        sequence += 1;
+        env.storage()
+            .instance()
+            .set(&DataKey::ProposalIdSequence, &sequence);
+
+        let created_at = env.ledger().timestamp();
+        let eta = created_at + config.timelock_delay;
+        let expires_at = created_at + expiry_seconds.unwrap_or(DEFAULT_PROPOSAL_EXPIRY);
+
+        let mut initial_approvals = Vec::new(&env);
+        initial_approvals.push_back(proposer.clone());
+
+        let proposal = Proposal {
+            id: sequence,
+            proposer: proposer.clone(),
+            action: action.clone(),
+            created_at,
+            eta,
+            expires_at,
+            approvals: initial_approvals,
+            executed: false,
+            cancelled: false,
+        };
+
+        env.storage()
+            .persistent()
+            .set(&DataKey::Proposal(sequence), &proposal);
+
+        let action_symbol = match action {
+            AdminAction::Pause => symbol_short!("pause"),
+            AdminAction::Unpause => symbol_short!("unpause"),
+            AdminAction::SetAdmin(_) => symbol_short!("set_adm"),
+            AdminAction::SlashBond(_, _) => symbol_short!("slash"),
+            AdminAction::SetMinBond(_) => symbol_short!("min_bond"),
+            AdminAction::SetGasConfig(_) => symbol_short!("gas_cfg"),
+            AdminAction::SetMultisigConfig(_, _, _) => symbol_short!("msig_cfg"),
+        };
+
+        env.events().publish(
+            (symbol_short!("registry"), symbol_short!("op_prop")),
+            OperationProposed {
+                proposal_id: sequence,
+                proposer,
+                action: action_symbol,
+                eta,
+                expires_at,
+            },
+        );
+
+        Ok(sequence)
+    }
+
+    pub fn approve_operation(env: Env, approver: Address, proposal_id: u64) -> Result<(), Error> {
+        approver.require_auth();
+        if !is_admin(&env, &approver) {
+            return Err(Error::InvalidSigner);
+        }
+
+        let mut proposal: Proposal = env
+            .storage()
+            .persistent()
+            .get(&DataKey::Proposal(proposal_id))
+            .ok_or(Error::ProposalNotFound)?;
+
+        if proposal.executed {
+            return Err(Error::ProposalAlreadyExecuted);
+        }
+        if proposal.cancelled {
+            return Err(Error::ProposalAlreadyCancelled);
+        }
+
+        let now = env.ledger().timestamp();
+        if now > proposal.expires_at {
+            return Err(Error::ProposalExpired);
+        }
+
+        if proposal.approvals.contains(&approver) {
+            return Err(Error::AlreadyApproved);
+        }
+
+        proposal.approvals.push_back(approver.clone());
+        env.storage()
+            .persistent()
+            .set(&DataKey::Proposal(proposal_id), &proposal);
+
+        env.events().publish(
+            (symbol_short!("registry"), symbol_short!("op_appr")),
+            OperationApproved {
+                proposal_id,
+                approver,
+            },
+        );
+
+        Ok(())
+    }
+
+    pub fn execute_operation(env: Env, executor: Address, proposal_id: u64) -> Result<(), Error> {
+        executor.require_auth();
+        if !is_admin(&env, &executor) {
+            return Err(Error::InvalidSigner);
+        }
+
+        let mut proposal: Proposal = env
+            .storage()
+            .persistent()
+            .get(&DataKey::Proposal(proposal_id))
+            .ok_or(Error::ProposalNotFound)?;
+
+        if proposal.executed {
+            return Err(Error::ProposalAlreadyExecuted);
+        }
+        if proposal.cancelled {
+            return Err(Error::ProposalAlreadyCancelled);
+        }
+
+        let now = env.ledger().timestamp();
+        if now > proposal.expires_at {
+            return Err(Error::ProposalExpired);
+        }
+        if now < proposal.eta {
+            return Err(Error::TimelockNotElapsed);
+        }
+
+        let config = env
+            .storage()
+            .instance()
+            .get::<_, MultisigConfig>(&DataKey::MultisigConfig)
+            .unwrap_or_else(|| MultisigConfig {
+                admins: Vec::new(&env),
+                threshold: 1,
+                timelock_delay: DEFAULT_TIMELOCK_DELAY,
+            });
+
+        if proposal.approvals.len() < config.threshold {
+            return Err(Error::InsufficientApprovals);
+        }
+
+        proposal.executed = true;
+        env.storage()
+            .persistent()
+            .set(&DataKey::Proposal(proposal_id), &proposal);
+
+        match proposal.action.clone() {
+            AdminAction::Pause => {
+                env.storage().instance().set(&DataKey::Paused, &true);
+                env.events()
+                    .publish((symbol_short!("registry"), symbol_short!("paused")), ());
+            }
+            AdminAction::Unpause => {
+                env.storage().instance().set(&DataKey::Paused, &false);
+                env.events()
+                    .publish((symbol_short!("registry"), symbol_short!("unpaused")), ());
+            }
+            AdminAction::SetAdmin(new_admin) => {
+                let old_admin = env
+                    .storage()
+                    .instance()
+                    .get(&DataKey::Admin)
+                    .unwrap_or_else(|| executor.clone());
+                env.storage().instance().set(&DataKey::Admin, &new_admin);
+                env.events().publish(
+                    (symbol_short!("registry"), symbol_short!("adm_chngd")),
+                    AdminChangedEvent {
+                        old_admin,
+                        new_admin,
+                    },
+                );
+            }
+            AdminAction::SlashBond(agent_id, penalty_stroops) => {
+                internal_slash_bond(&env, agent_id, penalty_stroops)?;
+            }
+            AdminAction::SetMinBond(min_bond_val) => {
+                env.storage().instance().set(&DataKey::MinBond, &min_bond_val);
+            }
+            AdminAction::SetGasConfig(gas_config_val) => {
+                env.storage().instance().set(&DataKey::GasConfig, &gas_config_val);
+            }
+            AdminAction::SetMultisigConfig(admins, threshold, timelock_delay) => {
+                if threshold == 0 || threshold > admins.len() {
+                    return Err(Error::InvalidThreshold);
+                }
+                let new_config = MultisigConfig {
+                    admins,
+                    threshold,
+                    timelock_delay,
+                };
+                env.storage().instance().set(&DataKey::MultisigConfig, &new_config);
+            }
+        }
+
+        env.events().publish(
+            (symbol_short!("registry"), symbol_short!("op_exec")),
+            OperationExecuted {
+                proposal_id,
+                executor,
+            },
+        );
+
+        Ok(())
+    }
+
+    pub fn cancel_operation(env: Env, canceller: Address, proposal_id: u64) -> Result<(), Error> {
+        canceller.require_auth();
+
+        let mut proposal: Proposal = env
+            .storage()
+            .persistent()
+            .get(&DataKey::Proposal(proposal_id))
+            .ok_or(Error::ProposalNotFound)?;
+
+        if proposal.proposer != canceller {
+            return Err(Error::Unauthorized);
+        }
+        if proposal.executed {
+            return Err(Error::ProposalAlreadyExecuted);
+        }
+        if proposal.cancelled {
+            return Err(Error::ProposalAlreadyCancelled);
+        }
+
+        proposal.cancelled = true;
+        env.storage()
+            .persistent()
+            .set(&DataKey::Proposal(proposal_id), &proposal);
+
+        env.events().publish(
+            (symbol_short!("registry"), symbol_short!("op_canc")),
+            OperationCancelled {
+                proposal_id,
+                canceller,
+            },
+        );
+
+        Ok(())
+    }
+
+    pub fn get_proposal(env: Env, proposal_id: u64) -> Result<Proposal, Error> {
+        env.storage()
+            .persistent()
+            .get(&DataKey::Proposal(proposal_id))
+            .ok_or(Error::ProposalNotFound)
     }
 
     pub fn pause(env: Env) -> Result<(), Error> {
@@ -2428,3 +2719,8 @@ mod test {
         assert_eq!(two, GAS_DEREGISTER_WITH_BOND * 2);
     }
 }
+
+#[cfg(test)]
+mod test_multisig;
+
+
