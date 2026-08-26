@@ -230,7 +230,6 @@ pub enum VoidBatchResult {
     Err(u32),
 }
 
-
 #[contract]
 pub struct AgentRegistryContract;
 
@@ -320,7 +319,11 @@ fn is_admin(env: &Env, addr: &Address) -> bool {
             return true;
         }
     }
-    if let Some(config) = env.storage().instance().get::<_, MultisigConfig>(&DataKey::MultisigConfig) {
+    if let Some(config) = env
+        .storage()
+        .instance()
+        .get::<_, MultisigConfig>(&DataKey::MultisigConfig)
+    {
         return config.admins.contains(addr);
     }
     false
@@ -456,7 +459,9 @@ impl AgentRegistryContract {
             threshold,
             timelock_delay,
         };
-        env.storage().instance().set(&DataKey::MultisigConfig, &config);
+        env.storage()
+            .instance()
+            .set(&DataKey::MultisigConfig, &config);
         Ok(())
     }
 
@@ -666,10 +671,14 @@ impl AgentRegistryContract {
                 internal_slash_bond(&env, agent_id, penalty_stroops)?;
             }
             AdminAction::SetMinBond(min_bond_val) => {
-                env.storage().instance().set(&DataKey::MinBond, &min_bond_val);
+                env.storage()
+                    .instance()
+                    .set(&DataKey::MinBond, &min_bond_val);
             }
             AdminAction::SetGasConfig(gas_config_val) => {
-                env.storage().instance().set(&DataKey::GasConfig, &gas_config_val);
+                env.storage()
+                    .instance()
+                    .set(&DataKey::GasConfig, &gas_config_val);
             }
             AdminAction::SetMultisigConfig(admins, threshold, timelock_delay) => {
                 if threshold == 0 || threshold > admins.len() {
@@ -680,7 +689,9 @@ impl AgentRegistryContract {
                     threshold,
                     timelock_delay,
                 };
-                env.storage().instance().set(&DataKey::MultisigConfig, &new_config);
+                env.storage()
+                    .instance()
+                    .set(&DataKey::MultisigConfig, &new_config);
             }
         }
 
@@ -2722,5 +2733,3 @@ mod test {
 
 #[cfg(test)]
 mod test_multisig;
-
-

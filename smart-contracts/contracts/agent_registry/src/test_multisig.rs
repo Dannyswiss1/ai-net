@@ -9,7 +9,13 @@ use soroban_sdk::{
     Address, Env, Vec,
 };
 
-fn setup_test_env() -> (Env, AgentRegistryContractClient<'static>, Address, Address, Address) {
+fn setup_test_env() -> (
+    Env,
+    AgentRegistryContractClient<'static>,
+    Address,
+    Address,
+    Address,
+) {
     let env = Env::default();
     env.mock_all_auths();
 
@@ -53,7 +59,10 @@ fn test_multisig_config_and_proposal_creation() {
     assert!(!proposal.executed);
     assert!(!proposal.cancelled);
     assert_eq!(proposal.eta, proposal.created_at + DEFAULT_TIMELOCK_DELAY);
-    assert_eq!(proposal.expires_at, proposal.created_at + DEFAULT_PROPOSAL_EXPIRY);
+    assert_eq!(
+        proposal.expires_at,
+        proposal.created_at + DEFAULT_PROPOSAL_EXPIRY
+    );
 }
 
 #[test]
@@ -179,7 +188,8 @@ fn test_admin_set_via_multisig() {
     assert_eq!(direct_res, Err(Ok(Error::Unauthorized)));
 
     // Propose SetAdmin via multi-sig
-    let proposal_id = client.propose_operation(&admin1, &AdminAction::SetAdmin(new_admin.clone()), &None);
+    let proposal_id =
+        client.propose_operation(&admin1, &AdminAction::SetAdmin(new_admin.clone()), &None);
     client.approve_operation(&admin2, &proposal_id);
 
     let proposal = client.get_proposal(&proposal_id);

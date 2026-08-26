@@ -3,8 +3,8 @@
 //! Defines the structs and enums used for multi-signature proposals, approvals,
 //! and threshold configuration.
 
-use soroban_sdk::{contracttype, Address, Symbol, Vec};
 use crate::GasConfig;
+use soroban_sdk::{contracttype, Address, Symbol, Vec};
 
 /// Admin actions that require multi-signature proposal and timelock execution.
 #[contracttype]

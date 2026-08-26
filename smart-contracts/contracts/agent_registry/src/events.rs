@@ -241,4 +241,3 @@ pub struct OperationCancelled {
     pub proposal_id: u64,
     pub canceller: Address,
 }
-
