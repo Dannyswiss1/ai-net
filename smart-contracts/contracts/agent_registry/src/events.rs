@@ -200,3 +200,22 @@ pub struct BondReturned {
     /// Bond amount returned in stroops.
     pub amount_stroops: i128,
 }
+
+/// Data payload for `(registry, disc_qry)`.
+///
+/// Published when a discovery query is processed by the oracle.
+#[contracttype]
+#[derive(Clone, Debug, PartialEq)]
+pub struct DiscoveryQueryEvent {
+    /// Required capability requested in the discovery query.
+    pub capability: Symbol,
+    /// Maximum acceptable price in stroops.
+    pub max_price: i128,
+    /// Minimum acceptable reputation score [0, 100].
+    pub min_reputation: u32,
+    /// Maximum acceptable response time / latency in milliseconds.
+    pub max_latency: u32,
+    /// Number of matching agents discovered and ranked.
+    pub matches_count: u32,
+}
+
