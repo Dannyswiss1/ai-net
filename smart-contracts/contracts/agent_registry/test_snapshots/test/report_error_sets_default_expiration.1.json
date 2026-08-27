@@ -125,11 +125,7 @@
                         "symbol": "resolution"
                       },
                       "val": {
-                        "vec": [
-                          {
-                            "symbol": "Fixed"
-                          }
-                        ]
+                        "u32": 0
                       }
                     },
                     {

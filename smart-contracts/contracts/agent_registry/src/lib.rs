@@ -80,6 +80,10 @@ pub const GAS_RESOLVE_ERROR_MARGINAL: u64 = 30_000;
 pub const GAS_SLASH_BOND: u64 = 60_000;
 /// Full cost of a `deregister_agent` that also returns a bond.
 pub const GAS_DEREGISTER_WITH_BOND: u64 = 80_000;
+/// Full cost of checking/removing a single expired error (includes overhead).
+pub const GAS_CLEANUP_ERROR: u64 = 20_000;
+/// Marginal cost of each additional error checked in a cleanup batch.
+pub const GAS_CLEANUP_ERROR_MARGINAL: u64 = 10_000;
 
 /// Default minimum bond required to register an agent, in stroops.
 /// 10 XLM = 100_000_000 stroops.  Admin can override via `set_min_bond`.
@@ -180,6 +184,8 @@ pub struct GasConfig {
     pub resolve_error_marginal: u64,
     pub slash_bond: u64,
     pub deregister_with_bond: u64,
+    pub cleanup_error: u64,
+    pub cleanup_error_marginal: u64,
 }
 
 impl GasConfig {
@@ -192,6 +198,8 @@ impl GasConfig {
             resolve_error_marginal: GAS_RESOLVE_ERROR_MARGINAL,
             slash_bond: GAS_SLASH_BOND,
             deregister_with_bond: GAS_DEREGISTER_WITH_BOND,
+            cleanup_error: GAS_CLEANUP_ERROR,
+            cleanup_error_marginal: GAS_CLEANUP_ERROR_MARGINAL,
         }
     }
 }
@@ -214,6 +222,8 @@ pub enum DataKey {
     FrozenAgent(Symbol),
     ErrorRecord(BytesN<32>),
     GasConfig,
+    /// Configurable TTL (in ledger sequences) applied to new error entries.
+    ErrorTTL,
     /// Minimum bond required for registration, in stroops (instance storage).
     MinBond,
     /// Ledger number at which the cooldown expires for a deregistering agent.
@@ -258,6 +268,13 @@ fn gas_config(env: &Env) -> GasConfig {
         .instance()
         .get(&DataKey::GasConfig)
         .unwrap_or_else(GasConfig::default_config)
+}
+
+fn error_ttl(env: &Env) -> u64 {
+    env.storage()
+        .instance()
+        .get(&DataKey::ErrorTTL)
+        .unwrap_or(DEFAULT_ERROR_TTL)
 }
 
 fn get_storage_config_internal(env: &Env) -> StorageConfig {
@@ -1485,6 +1502,7 @@ impl AgentRegistryContract {
         let resolve_errors = String::from_str(&env, "resolve_errors");
         let slash_bond_op = String::from_str(&env, "slash_bond");
         let deregister_bond_op = String::from_str(&env, "deregister_with_bond");
+        let cleanup_expired_errors = String::from_str(&env, "cleanup_expired_errors");
 
         if operation == register_agent || operation == register_agents {
             // First item pays full single-call cost; rest pay marginal.
@@ -1496,6 +1514,11 @@ impl AgentRegistryContract {
             cfg.resolve_error
                 + cfg
                     .resolve_error_marginal
+                    .saturating_mul((count - 1) as u64)
+        } else if operation == cleanup_expired_errors {
+            cfg.cleanup_error
+                + cfg
+                    .cleanup_error_marginal
                     .saturating_mul((count - 1) as u64)
         } else if operation == slash_bond_op {
             cfg.slash_bond.saturating_mul(count as u64)
@@ -1963,6 +1986,8 @@ mod test {
             resolve_error_marginal: 15_000,
             slash_bond: 30_000,
             deregister_with_bond: 40_000,
+            cleanup_error: 8_000,
+            cleanup_error_marginal: 4_000,
         };
 
         // Test non-admin cannot set gas config
@@ -2357,7 +2382,7 @@ mod test {
     fn gas_benchmark_custom_config_used_by_estimate_gas() {
         let (env, client, _admin) = setup_with_admin();
 
-        // Override with custom values — all seven fields required.
+        // Override with custom values — all fields required.
         let custom = GasConfig {
             tx_overhead: 10_000,
             register_agent: 80_000,
@@ -2366,6 +2391,8 @@ mod test {
             resolve_error_marginal: 20_000,
             slash_bond: GAS_SLASH_BOND,
             deregister_with_bond: GAS_DEREGISTER_WITH_BOND,
+            cleanup_error: GAS_CLEANUP_ERROR,
+            cleanup_error_marginal: GAS_CLEANUP_ERROR_MARGINAL,
         };
         client.set_gas_config(&custom);
 
@@ -3026,7 +3053,125 @@ mod test {
         let res = client.try_set_storage_config(&cfg);
         assert!(res.is_err());
     }
+
+    // ── Error TTL / expiration ───────────────────────────────────────────────
+
+    #[test]
+    fn estimate_gas_cleanup_scales_with_count() {
+        let (env, client) = setup();
+        let one = client.estimate_gas(&String::from_str(&env, "cleanup_expired_errors"), &1);
+        let ten = client.estimate_gas(&String::from_str(&env, "cleanup_expired_errors"), &10);
+
+        assert_eq!(one, GAS_CLEANUP_ERROR);
+        assert_eq!(ten, GAS_CLEANUP_ERROR + GAS_CLEANUP_ERROR_MARGINAL * 9);
+        assert!(ten < GAS_CLEANUP_ERROR * 10);
+    }
+
+    #[test]
+    fn report_error_sets_default_expiration() {
+        let (env, client, _admin) = setup_with_admin();
+        let reporter = Address::generate(&env);
+        let id = error_id(&env, 90);
+
+        env.ledger().set_sequence_number(1_000);
+        client.report_error(&id, &reporter, &String::from_str(&env, "boom"));
+
+        let entry = client.get_error(&id).unwrap();
+        assert_eq!(entry.created_at, 1_000);
+        assert_eq!(entry.expires_at, 1_000 + DEFAULT_ERROR_TTL);
+    }
+
+    #[test]
+    fn error_expires_after_configured_ttl() {
+        let (env, client, _admin) = setup_with_admin();
+        let reporter = Address::generate(&env);
+        let id = error_id(&env, 91);
+
+        env.ledger().set_sequence_number(500);
+        client.set_error_ttl(&100);
+        client.report_error(&id, &reporter, &String::from_str(&env, "flaky"));
+
+        let entry = client.get_error(&id).unwrap();
+        assert_eq!(entry.expires_at, 600);
+
+        // Not yet expired: cleanup is a no-op, entry survives.
+        env.ledger().set_sequence_number(599);
+        assert_eq!(
+            client.cleanup_expired_errors(&Vec::from_array(&env, [id.clone()])),
+            0
+        );
+        assert!(client.get_error(&id).is_some());
+
+        // At/after expiry: entry is eligible for cleanup and gets removed.
+        env.ledger().set_sequence_number(600);
+        assert_eq!(
+            client.cleanup_expired_errors(&Vec::from_array(&env, [id.clone()])),
+            1
+        );
+        assert!(client.get_error(&id).is_none());
+    }
+
+    #[test]
+    fn cleanup_expired_errors_removes_expired_entries() {
+        let (env, client, _admin) = setup_with_admin();
+        let reporter = Address::generate(&env);
+        let expired_id = error_id(&env, 92);
+        let live_id = error_id(&env, 93);
+
+        env.ledger().set_sequence_number(1_000);
+        client.set_error_ttl(&50);
+        client.report_error(&expired_id, &reporter, &String::from_str(&env, "old"));
+
+        env.ledger().set_sequence_number(1_040);
+        client.report_error(&live_id, &reporter, &String::from_str(&env, "new"));
+
+        // Advance past expired_id's expiry (1050) but not live_id's (1090).
+        env.ledger().set_sequence_number(1_060);
+
+        let ids = Vec::from_array(&env, [expired_id.clone(), live_id.clone()]);
+        let removed = client.cleanup_expired_errors(&ids);
+
+        assert_eq!(removed, 1);
+        assert!(client.get_error(&expired_id).is_none());
+        assert!(client.get_error(&live_id).is_some());
+    }
+
+    #[test]
+    fn cleanup_expired_errors_ignores_unknown_ids() {
+        let (env, client, _admin) = setup_with_admin();
+        let ghost_id = error_id(&env, 94);
+        let removed = client.cleanup_expired_errors(&Vec::from_array(&env, [ghost_id]));
+        assert_eq!(removed, 0);
+    }
+
+    #[test]
+    fn set_error_ttl_requires_admin_auth() {
+        let env = Env::default();
+        let contract_id = env.register(AgentRegistryContract, ());
+        let client = AgentRegistryContractClient::new(&env, &contract_id);
+        let admin = Address::generate(&env);
+
+        env.mock_all_auths();
+        client.initialize(&admin);
+
+        // Non-admin cannot configure TTL.
+        env.mock_auths(&[]);
+        let result = client.try_set_error_ttl(&1_000);
+        assert!(result.is_err());
+
+        // Admin succeeds and the new value is reflected in get_error_ttl.
+        env.mock_all_auths();
+        client.set_error_ttl(&1_000);
+        assert_eq!(client.get_error_ttl(), 1_000);
+    }
+
+    #[test]
+    fn get_error_ttl_defaults_when_unset() {
+        let (_env, client) = setup();
+        assert_eq!(client.get_error_ttl(), DEFAULT_ERROR_TTL);
+    }
 }
 
-#[cfg(test)]
+// `test_multisig.rs` gates itself internally via `#![cfg(test)]`; an outer
+// `#[cfg(test)]` here would duplicate that attribute (clippy::duplicated_attributes).
 mod test_multisig;
