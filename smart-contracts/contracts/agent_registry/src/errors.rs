@@ -39,6 +39,10 @@ pub enum Error {
     InvalidThreshold = 19,
     /// Signer is not an authorized multi-sig admin.
     InvalidSigner = 20,
+    /// Storage limit reached for total agents.
+    StorageLimitReached = 21,
+    /// Storage limit reached for capability index.
+    CapabilityLimitReached = 22,
 }
 
 impl Error {
@@ -65,6 +69,8 @@ impl Error {
             18 => Some(Error::TimelockNotElapsed),
             19 => Some(Error::InvalidThreshold),
             20 => Some(Error::InvalidSigner),
+            21 => Some(Error::StorageLimitReached),
+            22 => Some(Error::CapabilityLimitReached),
             _ => None,
         }
     }

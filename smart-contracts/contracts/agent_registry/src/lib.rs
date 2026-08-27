@@ -188,6 +188,14 @@ impl GasConfig {
     }
 }
 
+/// Configurable storage limits per contract instance.
+#[contracttype]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct StorageConfig {
+    pub max_agents: u32,         // Global limit (0 = unlimited)
+    pub max_per_capability: u32, // Per-capability limit (0 = unlimited)
+}
+
 #[contracttype]
 #[derive(Clone)]
 pub enum DataKey {
@@ -206,8 +214,8 @@ pub enum DataKey {
     MultisigConfig,
     Proposal(u64),
     ProposalIdSequence,
-    DiscoveryCache(DiscoveryQuery),
-    DiscoveryStats,
+    StorageConfig,
+    TotalAgents,
 }
 
 /// Per-item outcome for batch registration (`Ok(agent_id)` / `Err(code)`).
@@ -242,6 +250,31 @@ fn gas_config(env: &Env) -> GasConfig {
         .instance()
         .get(&DataKey::GasConfig)
         .unwrap_or_else(GasConfig::default_config)
+}
+
+fn get_storage_config_internal(env: &Env) -> StorageConfig {
+    env.storage()
+        .instance()
+        .get(&DataKey::StorageConfig)
+        .unwrap_or(StorageConfig {
+            max_agents: 0,
+            max_per_capability: 0,
+        })
+}
+
+fn get_total_agents(env: &Env) -> u32 {
+    env.storage()
+        .instance()
+        .get(&DataKey::TotalAgents)
+        .unwrap_or(0)
+}
+
+fn get_capability_index(env: &Env, capability: &Symbol) -> Vec<Symbol> {
+    let cap_key = DataKey::CapabilityIndex(capability.clone());
+    env.storage()
+        .persistent()
+        .get(&cap_key)
+        .unwrap_or_else(|| Vec::new(env))
 }
 
 fn extend_ttl_for_key(env: &Env, key: &DataKey) {
@@ -815,6 +848,21 @@ impl AgentRegistryContract {
 
         validate_record(&env, &record)?;
 
+        let config = get_storage_config_internal(&env);
+        if config.max_agents > 0 {
+            let total = get_total_agents(&env);
+            if total >= config.max_agents {
+                return Err(Error::StorageLimitReached);
+            }
+        }
+
+        if config.max_per_capability > 0 {
+            let cap_index = get_capability_index(&env, &record.capability);
+            if cap_index.len() >= config.max_per_capability {
+                return Err(Error::CapabilityLimitReached);
+            }
+        }
+
         // ── Bond validation ──────────────────────────────────────────────────
         let required = min_bond(&env);
         if record.bond_amount < required {
@@ -829,6 +877,11 @@ impl AgentRegistryContract {
         append_capability_index(&env, &record.capability, &record.id);
         env.storage().persistent().set(&agent_key, &record);
         extend_ttl_for_key(&env, &agent_key);
+
+        let total = get_total_agents(&env);
+        env.storage()
+            .instance()
+            .set(&DataKey::TotalAgents, &(total + 1));
 
         // Emit (registry, agent_registered) so off-chain indexers can
         // immediately detect new agents without polling storage.
@@ -904,6 +957,9 @@ impl AgentRegistryContract {
 
         // ── Phase 1: validate (no writes) ────────────────────────────────────
 
+        let config = get_storage_config_internal(&env);
+        let mut sim_total = get_total_agents(&env);
+
         for i in 0..agents.len() {
             let record = agents.get(i).unwrap();
 
@@ -928,6 +984,32 @@ impl AgentRegistryContract {
                 continue;
             }
 
+            if config.max_agents > 0 && sim_total >= config.max_agents {
+                results.push_back(BatchResult::Err(Error::StorageLimitReached as u32));
+                all_ok = false;
+                continue;
+            }
+
+            if config.max_per_capability > 0 {
+                let existing_cap = get_capability_index(&env, &record.capability).len();
+                let mut batch_cap_count = 0u32;
+                for j in 0..i {
+                    if let (Some(prev_res), Some(prev_agent)) = (results.get(j), agents.get(j)) {
+                        if prev_res == BatchResult::Ok(prev_agent.id.clone())
+                            && prev_agent.capability == record.capability
+                        {
+                            batch_cap_count += 1;
+                        }
+                    }
+                }
+                if existing_cap + batch_cap_count >= config.max_per_capability {
+                    results.push_back(BatchResult::Err(Error::CapabilityLimitReached as u32));
+                    all_ok = false;
+                    continue;
+                }
+            }
+
+            sim_total += 1;
             results.push_back(BatchResult::Ok(record.id.clone()));
         }
 
@@ -969,6 +1051,10 @@ impl AgentRegistryContract {
                 },
             );
         }
+        let current_total = get_total_agents(&env);
+        env.storage()
+            .instance()
+            .set(&DataKey::TotalAgents, &(current_total + agents.len()));
         extend_ttl_batch(&env, &ttl_keys);
 
         results
@@ -1283,6 +1369,13 @@ impl AgentRegistryContract {
         env.storage().persistent().set(&cap_key, &updated);
         env.storage().persistent().remove(&agent_key);
 
+        let total = get_total_agents(&env);
+        if total > 0 {
+            env.storage()
+                .instance()
+                .set(&DataKey::TotalAgents, &(total - 1));
+        }
+
         // Store the cooldown record so the second call can return the bond
         // without needing to re-read the already-deleted AgentRecord.
         let expiry_ledger = current_ledger + BOND_COOLDOWN_LEDGERS;
@@ -1593,6 +1686,28 @@ impl AgentRegistryContract {
     pub fn get_gas_config(env: Env) -> GasConfig {
         gas_config(&env)
     }
+
+    /// Read current total agent count.
+    pub fn total_agents(env: Env) -> u32 {
+        get_total_agents(&env)
+    }
+
+    /// Read storage limits configuration.
+    pub fn get_storage_config(env: Env) -> StorageConfig {
+        get_storage_config_internal(&env)
+    }
+
+    /// Update storage configuration (admin only).
+    pub fn set_storage_config(env: Env, config: StorageConfig) -> Result<(), Error> {
+        require_admin(&env)?;
+        env.storage()
+            .instance()
+            .set(&DataKey::StorageConfig, &config);
+        env.storage()
+            .instance()
+            .extend_ttl(TTL_THRESHOLD, TTL_EXTEND_TO);
+        Ok(())
+    }
 }
 
 fn get_metadata_u32(
@@ -1612,7 +1727,681 @@ fn get_metadata_u32(
             return v;
         }
     }
-    default_val
+
+    /// Custom GasConfig is persisted and used by estimate_gas (set_gas_config roundtrip).
+    #[test]
+    fn gas_benchmark_custom_config_used_by_estimate_gas() {
+        let (env, client, _admin) = setup_with_admin();
+
+        // Override with custom values — all seven fields required.
+        let custom = GasConfig {
+            tx_overhead: 10_000,
+            register_agent: 80_000,
+            register_agent_marginal: 40_000,
+            resolve_error: 30_000,
+            resolve_error_marginal: 20_000,
+            slash_bond: GAS_SLASH_BOND,
+            deregister_with_bond: GAS_DEREGISTER_WITH_BOND,
+        };
+        client.set_gas_config(&custom);
+
+        // estimate_gas must now reflect the custom config.
+        let reg_1 = client.estimate_gas(&String::from_str(&env, "register_agent"), &1);
+        assert_eq!(reg_1, 80_000, "single register should use custom base cost");
+
+        let reg_10 = client.estimate_gas(&String::from_str(&env, "register_agents"), &10);
+        let expected_reg_10 = 80_000_u64 + 40_000_u64 * 9;
+        assert_eq!(
+            reg_10, expected_reg_10,
+            "batch of 10 should use custom marginal cost"
+        );
+
+        let res_1 = client.estimate_gas(&String::from_str(&env, "resolve_error"), &1);
+        assert_eq!(res_1, 30_000, "single resolve should use custom base cost");
+
+        let res_10 = client.estimate_gas(&String::from_str(&env, "resolve_errors"), &10);
+        let expected_res_10 = 30_000_u64 + 20_000_u64 * 9;
+        assert_eq!(
+            res_10, expected_res_10,
+            "batch of 10 resolves should use custom marginal cost"
+        );
+
+        // Confirm get_gas_config returns the persisted config unchanged.
+        assert_eq!(client.get_gas_config(), custom);
+    }
+
+    /// Verify tx overhead is amortised: a batch of N always costs less than N
+    /// individual calls that each pay the full transaction overhead.
+    #[test]
+    fn gas_benchmark_overhead_amortisation() {
+        let (env, client) = setup();
+
+        for n in [2u32, 5, 10, 20] {
+            let batched = client.estimate_gas(&String::from_str(&env, "register_agents"), &n);
+            let separate =
+                client.estimate_gas(&String::from_str(&env, "register_agent"), &1) * n as u64;
+            assert!(
+                batched < separate,
+                "register_agents({n}): batched {batched} must be < {n} × single {separate}"
+            );
+
+            let batched_res = client.estimate_gas(&String::from_str(&env, "resolve_errors"), &n);
+            let separate_res =
+                client.estimate_gas(&String::from_str(&env, "resolve_error"), &1) * n as u64;
+            assert!(
+                batched_res < separate_res,
+                "resolve_errors({n}): batched {batched_res} must be < {n} × single {separate_res}"
+            );
+        }
+    }
+
+    // ── Event emission tests ─────────────────────────────────────────────────
+    //
+    // In Soroban's test Env, `env.events().all()` returns ONLY the events from
+    // the most recent contract invocation — it resets on every client.xxx() call.
+    // Tests inspect the event list directly after the one call under test.
+
+    fn assert_event_topics(env: &Env, idx: u32, topic0: Symbol, topic1: Symbol) {
+        let events = env.events().all();
+        assert!(
+            idx < events.len(),
+            "event index {} out of range (total {})",
+            idx,
+            events.len()
+        );
+        let (_, topics, _) = events.get(idx).unwrap();
+        let t0 = Symbol::from_val(env, &topics.get(0).unwrap());
+        let t1 = Symbol::from_val(env, &topics.get(1).unwrap());
+        assert_eq!(t0, topic0, "topic[0] mismatch at event {}", idx);
+        assert_eq!(t1, topic1, "topic[1] mismatch at event {}", idx);
+    }
+
+    #[test]
+    fn initialize_emits_initialized_event() {
+        let env = Env::default();
+        env.mock_all_auths();
+        let id = env.register(AgentRegistryContract, ());
+        let client = AgentRegistryContractClient::new(&env, &id);
+        let admin = Address::generate(&env);
+        client.initialize(&admin);
+        // events() reflects this call only
+        assert_eq!(env.events().all().len(), 1, "initialize must emit 1 event");
+        assert_event_topics(&env, 0, symbol_short!("registry"), symbol_short!("init"));
+    }
+
+    #[test]
+    fn set_admin_emits_admin_changed_event() {
+        let (env, client, _) = setup_with_admin();
+        let new_admin = Address::generate(&env);
+        client.set_admin(&new_admin);
+        // events() reflects set_admin call only
+        assert_eq!(env.events().all().len(), 1, "set_admin must emit 1 event");
+        assert_event_topics(
+            &env,
+            0,
+            symbol_short!("registry"),
+            symbol_short!("adm_chngd"),
+        );
+    }
+
+    #[test]
+    fn register_agent_emits_agent_registered_event() {
+        let (env, client) = setup();
+        let owner = Address::generate(&env);
+        client.register_agent(&make_record(&env, "ev_agent1", "research", owner));
+        // register_agent emits 2 events: agent_reg + bond_lck
+        assert_eq!(
+            env.events().all().len(),
+            2,
+            "register_agent must emit 2 events (agent_reg + bond_lck)"
+        );
+        assert_event_topics(
+            &env,
+            0,
+            symbol_short!("registry"),
+            symbol_short!("agent_reg"),
+        );
+        assert_event_topics(
+            &env,
+            1,
+            symbol_short!("registry"),
+            symbol_short!("bond_lck"),
+        );
+    }
+
+    #[test]
+    fn register_agents_batch_emits_one_event_per_agent() {
+        let (env, client) = setup();
+        let mut agents = Vec::new(&env);
+        agents.push_back(make_record(
+            &env,
+            "bev1",
+            "research",
+            Address::generate(&env),
+        ));
+        agents.push_back(make_record(&env, "bev2", "coding", Address::generate(&env)));
+        agents.push_back(make_record(&env, "bev3", "report", Address::generate(&env)));
+        let results = client.register_agents(&agents);
+        assert!(results.iter().all(|r| matches!(r, BatchResult::Ok(_))));
+        // Each committed agent emits 2 events: agent_reg + bond_lck → 3 agents = 6 events
+        assert_eq!(
+            env.events().all().len(),
+            6,
+            "batch of 3 must emit 6 events (agent_reg + bond_lck per agent)"
+        );
+        for i in 0..3u32 {
+            assert_event_topics(
+                &env,
+                i * 2,
+                symbol_short!("registry"),
+                symbol_short!("agent_reg"),
+            );
+            assert_event_topics(
+                &env,
+                i * 2 + 1,
+                symbol_short!("registry"),
+                symbol_short!("bond_lck"),
+            );
+        }
+    }
+
+    #[test]
+    fn register_agents_failed_batch_emits_no_events() {
+        let (env, client) = setup();
+        client.register_agent(&make_record(
+            &env,
+            "conflict",
+            "research",
+            Address::generate(&env),
+        ));
+        // failed batch: conflicting id forces atomic abort
+        let mut agents = Vec::new(&env);
+        agents.push_back(make_record(
+            &env,
+            "new_ok",
+            "coding",
+            Address::generate(&env),
+        ));
+        agents.push_back(make_record(
+            &env,
+            "conflict",
+            "research",
+            Address::generate(&env),
+        ));
+        client.register_agents(&agents);
+        // events() reflects this call — aborted, so zero
+        assert_eq!(
+            env.events().all().len(),
+            0,
+            "failed batch must emit 0 events"
+        );
+    }
+
+    #[test]
+    fn deregister_agent_emits_agent_deregistered_event() {
+        let (env, client) = setup();
+        let owner = Address::generate(&env);
+        client.register_agent(&make_record(&env, "dreg_ev", "analytics", owner));
+        client.deregister_agent(&Symbol::new(&env, "dreg_ev"));
+        // events() reflects deregister_agent call only
+        assert_eq!(
+            env.events().all().len(),
+            1,
+            "deregister_agent must emit 1 event"
+        );
+        assert_event_topics(
+            &env,
+            0,
+            symbol_short!("registry"),
+            symbol_short!("agent_drg"),
+        );
+    }
+
+    #[test]
+    fn report_error_emits_error_reported_event() {
+        let (env, client) = setup();
+        let reporter = Address::generate(&env);
+        let eid = error_id(&env, 77);
+        client.report_error(&eid, &reporter, &String::from_str(&env, "disk full"));
+        assert_eq!(
+            env.events().all().len(),
+            1,
+            "report_error must emit 1 event"
+        );
+        assert_event_topics(
+            &env,
+            0,
+            symbol_short!("registry"),
+            symbol_short!("err_rptd"),
+        );
+    }
+
+    #[test]
+    fn resolve_errors_emits_one_event_per_resolved_error() {
+        let (env, client, _) = setup_with_admin();
+        let reporter = Address::generate(&env);
+        let id1 = error_id(&env, 50);
+        let id2 = error_id(&env, 51);
+        let id3 = error_id(&env, 52);
+        client.report_error(&id1, &reporter, &String::from_str(&env, "t1"));
+        client.report_error(&id2, &reporter, &String::from_str(&env, "t2"));
+        client.report_error(&id3, &reporter, &String::from_str(&env, "t3"));
+        let mut ids = Vec::new(&env);
+        ids.push_back(id1);
+        ids.push_back(id2);
+        ids.push_back(id3);
+        let results = client.resolve_errors(&ids, &Resolution::Fixed);
+        assert!(results.iter().all(|r| r == VoidBatchResult::Ok));
+        // events() reflects resolve_errors call: 1 per resolved error
+        assert_eq!(
+            env.events().all().len(),
+            3,
+            "resolve_errors must emit 3 events"
+        );
+        for i in 0..3u32 {
+            assert_event_topics(
+                &env,
+                i,
+                symbol_short!("registry"),
+                symbol_short!("err_rslvd"),
+            );
+        }
+    }
+
+    #[test]
+    fn resolve_errors_failed_batch_emits_no_events() {
+        let (env, client, _) = setup_with_admin();
+        let reporter = Address::generate(&env);
+        let id1 = error_id(&env, 60);
+        let missing = error_id(&env, 99);
+        client.report_error(&id1, &reporter, &String::from_str(&env, "real"));
+        let mut ids = Vec::new(&env);
+        ids.push_back(id1);
+        ids.push_back(missing);
+        let results = client.resolve_errors(&ids, &Resolution::Ignored);
+        assert_eq!(
+            results.get(1).unwrap(),
+            VoidBatchResult::Err(Error::NotFound as u32)
+        );
+        // events() reflects this call — aborted, zero events
+        assert_eq!(
+            env.events().all().len(),
+            0,
+            "aborted resolve_errors must emit 0 events"
+        );
+    }
+
+    #[test]
+    fn resolve_errors_resolution_code_matches_variant() {
+        let (env, client, _) = setup_with_admin();
+        let reporter = Address::generate(&env);
+        let id1 = error_id(&env, 80);
+        client.report_error(&id1, &reporter, &String::from_str(&env, "netsplit"));
+        let mut ids = Vec::new(&env);
+        ids.push_back(id1);
+        client.resolve_errors(&ids, &Resolution::Escalated);
+        assert_eq!(env.events().all().len(), 1, "must emit 1 err_rslvd event");
+        assert_event_topics(
+            &env,
+            0,
+            symbol_short!("registry"),
+            symbol_short!("err_rslvd"),
+        );
+    }
+
+    // ── Bond mechanism tests ─────────────────────────────────────────────────
+
+    #[test]
+    fn register_with_sufficient_bond_succeeds() {
+        let (env, client) = setup();
+        let owner = Address::generate(&env);
+        // DEFAULT_MIN_BOND_STROOPS is 100_000_000 (10 XLM); make_record sets exactly that.
+        let record = make_record(&env, "bonded_agent", "research", owner);
+        assert!(client.try_register_agent(&record).is_ok());
+        let agents = client.lookup_agents(&Symbol::new(&env, "research"));
+        assert_eq!(agents.len(), 1);
+        assert_eq!(agents.get(0).unwrap().bond_amount, DEFAULT_MIN_BOND_STROOPS);
+    }
+
+    #[test]
+    fn register_with_insufficient_bond_is_rejected() {
+        let (env, client) = setup();
+        let owner = Address::generate(&env);
+        let mut record = make_record(&env, "low_bond", "research", owner);
+        record.bond_amount = DEFAULT_MIN_BOND_STROOPS - 1;
+        assert_eq!(
+            client.try_register_agent(&record),
+            Err(Ok(Error::InsufficientBond))
+        );
+    }
+
+    #[test]
+    fn register_with_zero_bond_is_rejected() {
+        let (env, client) = setup();
+        let owner = Address::generate(&env);
+        let mut record = make_record(&env, "zero_bond", "research", owner);
+        record.bond_amount = 0;
+        assert_eq!(
+            client.try_register_agent(&record),
+            Err(Ok(Error::InsufficientBond))
+        );
+    }
+
+    #[test]
+    fn set_min_bond_changes_requirement() {
+        let (env, client, _admin) = setup_with_admin();
+        // Lower the minimum to 1 stroop.
+        client.set_min_bond(&1_i128);
+        assert_eq!(client.get_min_bond(), 1_i128);
+
+        // A record with bond_amount = 1 should now succeed.
+        let owner = Address::generate(&env);
+        let mut record = make_record(&env, "low_bonded", "research", owner);
+        record.bond_amount = 1;
+        assert!(client.try_register_agent(&record).is_ok());
+    }
+
+    #[test]
+    fn set_min_bond_requires_admin() {
+        let env = Env::default();
+        let contract_id = env.register(AgentRegistryContract, ());
+        let client = AgentRegistryContractClient::new(&env, &contract_id);
+        let admin = Address::generate(&env);
+        env.mock_all_auths();
+        client.initialize(&admin);
+
+        // Non-admin call should fail.
+        env.mock_auths(&[]);
+        let result = client.try_set_min_bond(&500_i128);
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn slash_bond_reduces_bond_amount() {
+        let (env, client, _admin) = setup_with_admin();
+        let owner = Address::generate(&env);
+        client.register_agent(&make_record(&env, "slashme", "research", owner));
+
+        client.slash_bond(&Symbol::new(&env, "slashme"), &10_000_000_i128);
+
+        let agents = client.lookup_agents(&Symbol::new(&env, "research"));
+        let remaining = agents.get(0).unwrap().bond_amount;
+        assert_eq!(remaining, DEFAULT_MIN_BOND_STROOPS - 10_000_000);
+    }
+
+    #[test]
+    fn slash_bond_floors_at_zero() {
+        let (env, client, _admin) = setup_with_admin();
+        let owner = Address::generate(&env);
+        client.register_agent(&make_record(&env, "floor_agent", "research", owner));
+
+        // Slash more than the bond amount.
+        client.slash_bond(
+            &Symbol::new(&env, "floor_agent"),
+            &(DEFAULT_MIN_BOND_STROOPS + 999_i128),
+        );
+
+        let agents = client.lookup_agents(&Symbol::new(&env, "research"));
+        assert_eq!(agents.get(0).unwrap().bond_amount, 0);
+    }
+
+    #[test]
+    fn double_slash_does_not_go_negative() {
+        let (env, client, _admin) = setup_with_admin();
+        let owner = Address::generate(&env);
+        client.register_agent(&make_record(&env, "double_slash", "research", owner));
+
+        // First slash zeroes out the bond.
+        client.slash_bond(
+            &Symbol::new(&env, "double_slash"),
+            &(DEFAULT_MIN_BOND_STROOPS + 1_i128),
+        );
+        // Second slash on a zeroed bond must still be fine and stay at 0.
+        client.slash_bond(&Symbol::new(&env, "double_slash"), &1_000_000_i128);
+
+        let agents = client.lookup_agents(&Symbol::new(&env, "research"));
+        assert_eq!(agents.get(0).unwrap().bond_amount, 0);
+    }
+
+    #[test]
+    fn slash_bond_on_missing_agent_returns_not_found() {
+        let (_env, client, _admin) = setup_with_admin();
+        assert_eq!(
+            client.try_slash_bond(&Symbol::new(&_env, "ghost"), &1_000_i128),
+            Err(Ok(Error::NotFound))
+        );
+    }
+
+    #[test]
+    fn slash_bond_requires_admin() {
+        let env = Env::default();
+        let contract_id = env.register(AgentRegistryContract, ());
+        let client = AgentRegistryContractClient::new(&env, &contract_id);
+        let admin = Address::generate(&env);
+        env.mock_all_auths();
+        client.initialize(&admin);
+
+        let owner = Address::generate(&env);
+        client.register_agent(&make_record(&env, "protected", "research", owner));
+
+        // Non-admin cannot slash.
+        env.mock_auths(&[]);
+        let result = client.try_slash_bond(&Symbol::new(&env, "protected"), &1_000_i128);
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn deregister_initiates_cooldown() {
+        let (env, client) = setup();
+        let owner = Address::generate(&env);
+        client.register_agent(&make_record(&env, "cooldown_agent", "research", owner));
+
+        // First deregister call — should succeed and store a cooldown record.
+        assert!(client
+            .try_deregister_agent(&Symbol::new(&env, "cooldown_agent"))
+            .is_ok());
+
+        // Agent should be gone from the registry immediately.
+        let agents = client.lookup_agents(&Symbol::new(&env, "research"));
+        assert_eq!(agents.len(), 0);
+
+        // But a second call before cooldown elapses should return CooldownNotElapsed.
+        assert_eq!(
+            client.try_deregister_agent(&Symbol::new(&env, "cooldown_agent")),
+            Err(Ok(Error::CooldownNotElapsed))
+        );
+    }
+
+    #[test]
+    fn bond_return_before_cooldown_is_rejected() {
+        let (env, client) = setup();
+        let owner = Address::generate(&env);
+        client.register_agent(&make_record(&env, "early_return", "research", owner));
+        client.deregister_agent(&Symbol::new(&env, "early_return"));
+
+        // Immediately try to claim the bond — cooldown has not elapsed yet.
+        assert_eq!(
+            client.try_deregister_agent(&Symbol::new(&env, "early_return")),
+            Err(Ok(Error::CooldownNotElapsed))
+        );
+    }
+
+    #[test]
+    fn bond_returned_after_cooldown_elapses() {
+        let env = Env::default();
+        env.mock_all_auths();
+        // Set a very high max_entry_ttl so nothing gets archived when we
+        // advance the ledger past the default min_persistent_entry_ttl.
+        env.ledger().set_max_entry_ttl(100_000_000);
+        env.ledger().set_min_persistent_entry_ttl(100_000_000);
+
+        let id = env.register(AgentRegistryContract, ());
+        let client = AgentRegistryContractClient::new(&env, &id);
+
+        let owner = Address::generate(&env);
+        client.register_agent(&make_record(&env, "wait_agent", "research", owner));
+        client.deregister_agent(&Symbol::new(&env, "wait_agent"));
+
+        // Advance ledger sequence past the 24-hour cooldown window.
+        let new_seq = env.ledger().sequence() + BOND_COOLDOWN_LEDGERS + 1;
+        env.ledger().set_sequence_number(new_seq);
+
+        // Second call after cooldown should succeed and emit BondReturned.
+        assert!(client
+            .try_deregister_agent(&Symbol::new(&env, "wait_agent"))
+            .is_ok());
+
+        // One BondReturned event should have been emitted.
+        let events = env.events().all();
+        assert_eq!(events.len(), 1, "bond return must emit 1 event");
+        assert_event_topics(
+            &env,
+            0,
+            symbol_short!("registry"),
+            symbol_short!("bond_ret"),
+        );
+    }
+
+    #[test]
+    fn estimate_gas_slash_bond_operation() {
+        let (env, client) = setup();
+        let one = client.estimate_gas(&String::from_str(&env, "slash_bond"), &1);
+        let three = client.estimate_gas(&String::from_str(&env, "slash_bond"), &3);
+        assert_eq!(one, GAS_SLASH_BOND);
+        assert_eq!(three, GAS_SLASH_BOND * 3);
+    }
+
+    #[test]
+    fn estimate_gas_deregister_with_bond_operation() {
+        let (env, client) = setup();
+        let one = client.estimate_gas(&String::from_str(&env, "deregister_with_bond"), &1);
+        let two = client.estimate_gas(&String::from_str(&env, "deregister_with_bond"), &2);
+        assert_eq!(one, GAS_DEREGISTER_WITH_BOND);
+        assert_eq!(two, GAS_DEREGISTER_WITH_BOND * 2);
+    }
+
+    #[test]
+    fn test_total_agents_increments_and_decrements() {
+        let (env, client) = setup();
+        let owner = Address::generate(&env);
+
+        assert_eq!(client.total_agents(), 0);
+
+        client.register_agent(&make_record(&env, "ag1", "research", owner.clone()));
+        assert_eq!(client.total_agents(), 1);
+
+        let batch = soroban_sdk::vec![
+            &env,
+            make_record(&env, "ag2", "research", owner.clone()),
+            make_record(&env, "ag3", "coding", owner.clone()),
+        ];
+        let batch_res = client.register_agents(&batch);
+        assert_eq!(batch_res.len(), 2);
+        assert_eq!(client.total_agents(), 3);
+
+        client.deregister_agent(&Symbol::new(&env, "ag1"));
+        assert_eq!(client.total_agents(), 2);
+    }
+
+    #[test]
+    fn test_storage_config_global_limit() {
+        let (env, client, _admin) = setup_with_admin();
+        let owner = Address::generate(&env);
+
+        let cfg = StorageConfig {
+            max_agents: 2,
+            max_per_capability: 0,
+        };
+        client.set_storage_config(&cfg);
+        assert_eq!(client.get_storage_config(), cfg);
+
+        assert!(client
+            .try_register_agent(&make_record(&env, "ag1", "research", owner.clone()))
+            .is_ok());
+        assert!(client
+            .try_register_agent(&make_record(&env, "ag2", "coding", owner.clone()))
+            .is_ok());
+
+        let res = client.try_register_agent(&make_record(&env, "ag3", "risk", owner.clone()));
+        assert_eq!(res, Err(Ok(Error::StorageLimitReached)));
+    }
+
+    #[test]
+    fn test_storage_config_per_capability_limit() {
+        let (env, client, _admin) = setup_with_admin();
+        let owner = Address::generate(&env);
+
+        let cfg = StorageConfig {
+            max_agents: 0,
+            max_per_capability: 1,
+        };
+        client.set_storage_config(&cfg);
+
+        assert!(client
+            .try_register_agent(&make_record(&env, "ag1", "research", owner.clone()))
+            .is_ok());
+
+        let res = client.try_register_agent(&make_record(&env, "ag2", "research", owner.clone()));
+        assert_eq!(res, Err(Ok(Error::CapabilityLimitReached)));
+
+        assert!(client
+            .try_register_agent(&make_record(&env, "ag3", "coding", owner.clone()))
+            .is_ok());
+    }
+
+    #[test]
+    fn test_storage_config_batch_limits() {
+        let (env, client, _admin) = setup_with_admin();
+        let owner = Address::generate(&env);
+
+        let cfg = StorageConfig {
+            max_agents: 2,
+            max_per_capability: 0,
+        };
+        client.set_storage_config(&cfg);
+
+        let batch = soroban_sdk::vec![
+            &env,
+            make_record(&env, "ag1", "research", owner.clone()),
+            make_record(&env, "ag2", "research", owner.clone()),
+            make_record(&env, "ag3", "coding", owner.clone()),
+        ];
+        let res = client.register_agents(&batch);
+        assert_eq!(res.len(), 3);
+        assert_eq!(
+            res.get(0).unwrap(),
+            BatchResult::Ok(Symbol::new(&env, "ag1"))
+        );
+        assert_eq!(
+            res.get(1).unwrap(),
+            BatchResult::Ok(Symbol::new(&env, "ag2"))
+        );
+        assert_eq!(
+            res.get(2).unwrap(),
+            BatchResult::Err(Error::StorageLimitReached as u32)
+        );
+
+        // Atomic batch aborts on any failure
+        assert_eq!(client.total_agents(), 0);
+    }
+
+    #[test]
+    fn test_non_admin_cannot_set_storage_config() {
+        let env = Env::default();
+        let id = env.register(AgentRegistryContract, ());
+        let client = AgentRegistryContractClient::new(&env, &id);
+        let admin = Address::generate(&env);
+        client.initialize(&admin);
+
+        let cfg = StorageConfig {
+            max_agents: 10,
+            max_per_capability: 5,
+        };
+
+        env.mock_auths(&[]);
+        let res = client.try_set_storage_config(&cfg);
+        assert!(res.is_err());
+    }
 }
 
 #[cfg(test)]
