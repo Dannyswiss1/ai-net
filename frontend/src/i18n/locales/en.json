@@ -110,6 +110,11 @@
   "wallet.export.pdfTitle": "Transaction History",
   "wallet.export.txCount": "Transactions",
 
+  "wallet.chart.dailySpendHeading": "Daily Spend (Last 30 Days)",
+  "wallet.chart.byAgentHeading": "Cost Breakdown by Agent",
+  "wallet.chart.noData": "No spending data yet",
+  "wallet.chart.spent": "Spent",
+
   "validation.invalidSecretKey": "Invalid Stellar secret key. Must start with S and be 56 characters.",
   "validation.destinationRequired": "Destination address is required",
   "validation.invalidStellarAddress": "Invalid Stellar address. Must start with G and be 56 characters.",

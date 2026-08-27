@@ -110,6 +110,11 @@
   "wallet.export.pdfTitle": "交易历史",
   "wallet.export.txCount": "交易数",
 
+  "wallet.chart.dailySpendHeading": "每日支出（最近 30 天）",
+  "wallet.chart.byAgentHeading": "按代理成本拆分",
+  "wallet.chart.noData": "暂无支出数据",
+  "wallet.chart.spent": "支出",
+
   "validation.invalidSecretKey": "无效的 Stellar 私钥。必须以 S 开头且为 56 个字符。",
   "validation.destinationRequired": "目标地址为必填项",
   "validation.invalidStellarAddress": "无效的 Stellar 地址。必须以 G 开头且为 56 个字符。",
