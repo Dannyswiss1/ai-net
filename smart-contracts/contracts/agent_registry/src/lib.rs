@@ -188,6 +188,14 @@ impl GasConfig {
     }
 }
 
+/// Configurable storage limits per contract instance.
+#[contracttype]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct StorageConfig {
+    pub max_agents: u32,         // Global limit (0 = unlimited)
+    pub max_per_capability: u32, // Per-capability limit (0 = unlimited)
+}
+
 #[contracttype]
 #[derive(Clone)]
 pub enum DataKey {
@@ -206,6 +214,8 @@ pub enum DataKey {
     MultisigConfig,
     Proposal(u64),
     ProposalIdSequence,
+    StorageConfig,
+    TotalAgents,
 }
 
 /// Per-item outcome for batch registration (`Ok(agent_id)` / `Err(code)`).
@@ -240,6 +250,31 @@ fn gas_config(env: &Env) -> GasConfig {
         .instance()
         .get(&DataKey::GasConfig)
         .unwrap_or_else(GasConfig::default_config)
+}
+
+fn get_storage_config_internal(env: &Env) -> StorageConfig {
+    env.storage()
+        .instance()
+        .get(&DataKey::StorageConfig)
+        .unwrap_or(StorageConfig {
+            max_agents: 0,
+            max_per_capability: 0,
+        })
+}
+
+fn get_total_agents(env: &Env) -> u32 {
+    env.storage()
+        .instance()
+        .get(&DataKey::TotalAgents)
+        .unwrap_or(0)
+}
+
+fn get_capability_index(env: &Env, capability: &Symbol) -> Vec<Symbol> {
+    let cap_key = DataKey::CapabilityIndex(capability.clone());
+    env.storage()
+        .persistent()
+        .get(&cap_key)
+        .unwrap_or_else(|| Vec::new(env))
 }
 
 fn extend_ttl_for_key(env: &Env, key: &DataKey) {
@@ -813,6 +848,21 @@ impl AgentRegistryContract {
 
         validate_record(&env, &record)?;
 
+        let config = get_storage_config_internal(&env);
+        if config.max_agents > 0 {
+            let total = get_total_agents(&env);
+            if total >= config.max_agents {
+                return Err(Error::StorageLimitReached);
+            }
+        }
+
+        if config.max_per_capability > 0 {
+            let cap_index = get_capability_index(&env, &record.capability);
+            if cap_index.len() >= config.max_per_capability {
+                return Err(Error::CapabilityLimitReached);
+            }
+        }
+
         // ── Bond validation ──────────────────────────────────────────────────
         let required = min_bond(&env);
         if record.bond_amount < required {
@@ -827,6 +877,11 @@ impl AgentRegistryContract {
         append_capability_index(&env, &record.capability, &record.id);
         env.storage().persistent().set(&agent_key, &record);
         extend_ttl_for_key(&env, &agent_key);
+
+        let total = get_total_agents(&env);
+        env.storage()
+            .instance()
+            .set(&DataKey::TotalAgents, &(total + 1));
 
         // Emit (registry, agent_registered) so off-chain indexers can
         // immediately detect new agents without polling storage.
@@ -902,6 +957,9 @@ impl AgentRegistryContract {
 
         // ── Phase 1: validate (no writes) ────────────────────────────────────
 
+        let config = get_storage_config_internal(&env);
+        let mut sim_total = get_total_agents(&env);
+
         for i in 0..agents.len() {
             let record = agents.get(i).unwrap();
 
@@ -926,6 +984,32 @@ impl AgentRegistryContract {
                 continue;
             }
 
+            if config.max_agents > 0 && sim_total >= config.max_agents {
+                results.push_back(BatchResult::Err(Error::StorageLimitReached as u32));
+                all_ok = false;
+                continue;
+            }
+
+            if config.max_per_capability > 0 {
+                let existing_cap = get_capability_index(&env, &record.capability).len();
+                let mut batch_cap_count = 0u32;
+                for j in 0..i {
+                    if let (Some(prev_res), Some(prev_agent)) = (results.get(j), agents.get(j)) {
+                        if prev_res == BatchResult::Ok(prev_agent.id.clone())
+                            && prev_agent.capability == record.capability
+                        {
+                            batch_cap_count += 1;
+                        }
+                    }
+                }
+                if existing_cap + batch_cap_count >= config.max_per_capability {
+                    results.push_back(BatchResult::Err(Error::CapabilityLimitReached as u32));
+                    all_ok = false;
+                    continue;
+                }
+            }
+
+            sim_total += 1;
             results.push_back(BatchResult::Ok(record.id.clone()));
         }
 
@@ -967,6 +1051,10 @@ impl AgentRegistryContract {
                 },
             );
         }
+        let current_total = get_total_agents(&env);
+        env.storage()
+            .instance()
+            .set(&DataKey::TotalAgents, &(current_total + agents.len()));
         extend_ttl_batch(&env, &ttl_keys);
 
         results
@@ -1057,6 +1145,13 @@ impl AgentRegistryContract {
         }
         env.storage().persistent().set(&cap_key, &updated);
         env.storage().persistent().remove(&agent_key);
+
+        let total = get_total_agents(&env);
+        if total > 0 {
+            env.storage()
+                .instance()
+                .set(&DataKey::TotalAgents, &(total - 1));
+        }
 
         // Store the cooldown record so the second call can return the bond
         // without needing to re-read the already-deleted AgentRecord.
@@ -1367,6 +1462,28 @@ impl AgentRegistryContract {
     /// Read the current gas configuration (defaults if never set).
     pub fn get_gas_config(env: Env) -> GasConfig {
         gas_config(&env)
+    }
+
+    /// Read current total agent count.
+    pub fn total_agents(env: Env) -> u32 {
+        get_total_agents(&env)
+    }
+
+    /// Read storage limits configuration.
+    pub fn get_storage_config(env: Env) -> StorageConfig {
+        get_storage_config_internal(&env)
+    }
+
+    /// Update storage configuration (admin only).
+    pub fn set_storage_config(env: Env, config: StorageConfig) -> Result<(), Error> {
+        require_admin(&env)?;
+        env.storage()
+            .instance()
+            .set(&DataKey::StorageConfig, &config);
+        env.storage()
+            .instance()
+            .extend_ttl(TTL_THRESHOLD, TTL_EXTEND_TO);
+        Ok(())
     }
 }
 
@@ -2728,6 +2845,129 @@ mod test {
         let two = client.estimate_gas(&String::from_str(&env, "deregister_with_bond"), &2);
         assert_eq!(one, GAS_DEREGISTER_WITH_BOND);
         assert_eq!(two, GAS_DEREGISTER_WITH_BOND * 2);
+    }
+
+    #[test]
+    fn test_total_agents_increments_and_decrements() {
+        let (env, client) = setup();
+        let owner = Address::generate(&env);
+
+        assert_eq!(client.total_agents(), 0);
+
+        client.register_agent(&make_record(&env, "ag1", "research", owner.clone()));
+        assert_eq!(client.total_agents(), 1);
+
+        let batch = soroban_sdk::vec![
+            &env,
+            make_record(&env, "ag2", "research", owner.clone()),
+            make_record(&env, "ag3", "coding", owner.clone()),
+        ];
+        let batch_res = client.register_agents(&batch);
+        assert_eq!(batch_res.len(), 2);
+        assert_eq!(client.total_agents(), 3);
+
+        client.deregister_agent(&Symbol::new(&env, "ag1"));
+        assert_eq!(client.total_agents(), 2);
+    }
+
+    #[test]
+    fn test_storage_config_global_limit() {
+        let (env, client, _admin) = setup_with_admin();
+        let owner = Address::generate(&env);
+
+        let cfg = StorageConfig {
+            max_agents: 2,
+            max_per_capability: 0,
+        };
+        client.set_storage_config(&cfg);
+        assert_eq!(client.get_storage_config(), cfg);
+
+        assert!(client
+            .try_register_agent(&make_record(&env, "ag1", "research", owner.clone()))
+            .is_ok());
+        assert!(client
+            .try_register_agent(&make_record(&env, "ag2", "coding", owner.clone()))
+            .is_ok());
+
+        let res = client.try_register_agent(&make_record(&env, "ag3", "risk", owner.clone()));
+        assert_eq!(res, Err(Ok(Error::StorageLimitReached)));
+    }
+
+    #[test]
+    fn test_storage_config_per_capability_limit() {
+        let (env, client, _admin) = setup_with_admin();
+        let owner = Address::generate(&env);
+
+        let cfg = StorageConfig {
+            max_agents: 0,
+            max_per_capability: 1,
+        };
+        client.set_storage_config(&cfg);
+
+        assert!(client
+            .try_register_agent(&make_record(&env, "ag1", "research", owner.clone()))
+            .is_ok());
+
+        let res = client.try_register_agent(&make_record(&env, "ag2", "research", owner.clone()));
+        assert_eq!(res, Err(Ok(Error::CapabilityLimitReached)));
+
+        assert!(client
+            .try_register_agent(&make_record(&env, "ag3", "coding", owner.clone()))
+            .is_ok());
+    }
+
+    #[test]
+    fn test_storage_config_batch_limits() {
+        let (env, client, _admin) = setup_with_admin();
+        let owner = Address::generate(&env);
+
+        let cfg = StorageConfig {
+            max_agents: 2,
+            max_per_capability: 0,
+        };
+        client.set_storage_config(&cfg);
+
+        let batch = soroban_sdk::vec![
+            &env,
+            make_record(&env, "ag1", "research", owner.clone()),
+            make_record(&env, "ag2", "research", owner.clone()),
+            make_record(&env, "ag3", "coding", owner.clone()),
+        ];
+        let res = client.register_agents(&batch);
+        assert_eq!(res.len(), 3);
+        assert_eq!(
+            res.get(0).unwrap(),
+            BatchResult::Ok(Symbol::new(&env, "ag1"))
+        );
+        assert_eq!(
+            res.get(1).unwrap(),
+            BatchResult::Ok(Symbol::new(&env, "ag2"))
+        );
+        assert_eq!(
+            res.get(2).unwrap(),
+            BatchResult::Err(Error::StorageLimitReached as u32)
+        );
+
+        // Atomic batch aborts on any failure
+        assert_eq!(client.total_agents(), 0);
+    }
+
+    #[test]
+    fn test_non_admin_cannot_set_storage_config() {
+        let env = Env::default();
+        let id = env.register(AgentRegistryContract, ());
+        let client = AgentRegistryContractClient::new(&env, &id);
+        let admin = Address::generate(&env);
+        client.initialize(&admin);
+
+        let cfg = StorageConfig {
+            max_agents: 10,
+            max_per_capability: 5,
+        };
+
+        env.mock_auths(&[]);
+        let res = client.try_set_storage_config(&cfg);
+        assert!(res.is_err());
     }
 }
 
