@@ -59,7 +59,10 @@ fn make_record_with_metrics(
     let mut metadata = Map::new(env);
     metadata.set(Symbol::new(env, "reputation"), reputation.into_val(env));
     metadata.set(Symbol::new(env, "availability"), availability.into_val(env));
-    metadata.set(Symbol::new(env, "response_time"), response_time.into_val(env));
+    metadata.set(
+        Symbol::new(env, "response_time"),
+        response_time.into_val(env),
+    );
 
     AgentRecord {
         id: Symbol::new(env, id),
@@ -715,10 +718,7 @@ fn gas_benchmark_register_agents_batch_savings() {
     );
 
     let savings_pct = (ten_separate - batched_ten) * 100 / ten_separate;
-    assert!(
-        savings_pct >= 39,
-        "savings {savings_pct}% must be >= 39%"
-    );
+    assert!(savings_pct >= 39, "savings {savings_pct}% must be >= 39%");
 
     let expected = GAS_REGISTER_AGENT + GAS_REGISTER_AGENT_MARGINAL * 9;
     assert_eq!(
@@ -742,10 +742,7 @@ fn gas_benchmark_resolve_errors_batch_savings() {
     );
 
     let savings_pct = (ten_separate - batched_ten) * 100 / ten_separate;
-    assert!(
-        savings_pct >= 36,
-        "savings {savings_pct}% must be >= 36%"
-    );
+    assert!(savings_pct >= 36, "savings {savings_pct}% must be >= 36%");
 
     let expected = GAS_RESOLVE_ERROR + GAS_RESOLVE_ERROR_MARGINAL * 9;
     assert_eq!(
@@ -1264,9 +1261,36 @@ fn discover_agents_returns_ranked_matching_agents() {
     let (env, client) = setup();
     let owner = Address::generate(&env);
 
-    let a1 = make_record_with_metrics(&env, "agent_best", "research", 500_000, 95, 95, 100, owner.clone());
-    let a2 = make_record_with_metrics(&env, "agent_mid", "research", 1_000_000, 80, 85, 200, owner.clone());
-    let a3 = make_record_with_metrics(&env, "agent_low", "research", 2_000_000, 60, 70, 500, owner.clone());
+    let a1 = make_record_with_metrics(
+        &env,
+        "agent_best",
+        "research",
+        500_000,
+        95,
+        95,
+        100,
+        owner.clone(),
+    );
+    let a2 = make_record_with_metrics(
+        &env,
+        "agent_mid",
+        "research",
+        1_000_000,
+        80,
+        85,
+        200,
+        owner.clone(),
+    );
+    let a3 = make_record_with_metrics(
+        &env,
+        "agent_low",
+        "research",
+        2_000_000,
+        60,
+        70,
+        500,
+        owner.clone(),
+    );
 
     client.register_agent(&a1);
     client.register_agent(&a2);
@@ -1282,9 +1306,18 @@ fn discover_agents_returns_ranked_matching_agents() {
     let results = client.discover_agents(&query);
     assert_eq!(results.len(), 3);
 
-    assert_eq!(results.get(0).unwrap().agent_id, Symbol::new(&env, "agent_best"));
-    assert_eq!(results.get(1).unwrap().agent_id, Symbol::new(&env, "agent_mid"));
-    assert_eq!(results.get(2).unwrap().agent_id, Symbol::new(&env, "agent_low"));
+    assert_eq!(
+        results.get(0).unwrap().agent_id,
+        Symbol::new(&env, "agent_best")
+    );
+    assert_eq!(
+        results.get(1).unwrap().agent_id,
+        Symbol::new(&env, "agent_mid")
+    );
+    assert_eq!(
+        results.get(2).unwrap().agent_id,
+        Symbol::new(&env, "agent_low")
+    );
 
     assert!(results.get(0).unwrap().composite_score > results.get(1).unwrap().composite_score);
     assert!(results.get(1).unwrap().composite_score > results.get(2).unwrap().composite_score);
@@ -1295,10 +1328,46 @@ fn discover_agents_multi_criteria_filtering() {
     let (env, client) = setup();
     let owner = Address::generate(&env);
 
-    let a1 = make_record_with_metrics(&env, "agent_expensive", "code", 5_000_000, 90, 90, 100, owner.clone());
-    let a2 = make_record_with_metrics(&env, "agent_low_rep", "code", 1_000_000, 40, 90, 100, owner.clone());
-    let a3 = make_record_with_metrics(&env, "agent_slow", "code", 1_000_000, 90, 90, 800, owner.clone());
-    let a4 = make_record_with_metrics(&env, "agent_match", "code", 1_000_000, 90, 90, 100, owner.clone());
+    let a1 = make_record_with_metrics(
+        &env,
+        "agent_expensive",
+        "code",
+        5_000_000,
+        90,
+        90,
+        100,
+        owner.clone(),
+    );
+    let a2 = make_record_with_metrics(
+        &env,
+        "agent_low_rep",
+        "code",
+        1_000_000,
+        40,
+        90,
+        100,
+        owner.clone(),
+    );
+    let a3 = make_record_with_metrics(
+        &env,
+        "agent_slow",
+        "code",
+        1_000_000,
+        90,
+        90,
+        800,
+        owner.clone(),
+    );
+    let a4 = make_record_with_metrics(
+        &env,
+        "agent_match",
+        "code",
+        1_000_000,
+        90,
+        90,
+        100,
+        owner.clone(),
+    );
 
     client.register_agent(&a1);
     client.register_agent(&a2);
@@ -1314,7 +1383,10 @@ fn discover_agents_multi_criteria_filtering() {
 
     let results = client.discover_agents(&query);
     assert_eq!(results.len(), 1);
-    assert_eq!(results.get(0).unwrap().agent_id, Symbol::new(&env, "agent_match"));
+    assert_eq!(
+        results.get(0).unwrap().agent_id,
+        Symbol::new(&env, "agent_match")
+    );
 }
 
 #[test]
@@ -1322,8 +1394,26 @@ fn discover_agents_excludes_frozen_agents() {
     let (env, client, _admin) = setup_with_admin();
     let owner = Address::generate(&env);
 
-    let a1 = make_record_with_metrics(&env, "agent_active", "risk", 1_000_000, 90, 90, 100, owner.clone());
-    let a2 = make_record_with_metrics(&env, "agent_frozen", "risk", 1_000_000, 95, 95, 50, owner.clone());
+    let a1 = make_record_with_metrics(
+        &env,
+        "agent_active",
+        "risk",
+        1_000_000,
+        90,
+        90,
+        100,
+        owner.clone(),
+    );
+    let a2 = make_record_with_metrics(
+        &env,
+        "agent_frozen",
+        "risk",
+        1_000_000,
+        95,
+        95,
+        50,
+        owner.clone(),
+    );
 
     client.register_agent(&a1);
     client.register_agent(&a2);
@@ -1339,7 +1429,10 @@ fn discover_agents_excludes_frozen_agents() {
 
     let results = client.discover_agents(&query);
     assert_eq!(results.len(), 1);
-    assert_eq!(results.get(0).unwrap().agent_id, Symbol::new(&env, "agent_active"));
+    assert_eq!(
+        results.get(0).unwrap().agent_id,
+        Symbol::new(&env, "agent_active")
+    );
 }
 
 #[test]
@@ -1347,7 +1440,16 @@ fn discover_agents_results_caching_and_stats() {
     let (env, client) = setup();
     let owner = Address::generate(&env);
 
-    let a1 = make_record_with_metrics(&env, "agent_c1", "data", 1_000_000, 85, 90, 150, owner.clone());
+    let a1 = make_record_with_metrics(
+        &env,
+        "agent_c1",
+        "data",
+        1_000_000,
+        85,
+        90,
+        150,
+        owner.clone(),
+    );
     client.register_agent(&a1);
 
     let query = DiscoveryQuery {
@@ -1380,7 +1482,16 @@ fn discover_agents_emits_discovery_query_event() {
     let (env, client) = setup();
     let owner = Address::generate(&env);
 
-    let a1 = make_record_with_metrics(&env, "agent_event", "audit", 1_000_000, 85, 90, 150, owner.clone());
+    let a1 = make_record_with_metrics(
+        &env,
+        "agent_event",
+        "audit",
+        1_000_000,
+        85,
+        90,
+        150,
+        owner.clone(),
+    );
     client.register_agent(&a1);
 
     let query = DiscoveryQuery {

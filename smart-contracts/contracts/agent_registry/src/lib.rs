@@ -206,6 +206,8 @@ pub enum DataKey {
     MultisigConfig,
     Proposal(u64),
     ProposalIdSequence,
+    DiscoveryCache(DiscoveryQuery),
+    DiscoveryStats,
 }
 
 /// Per-item outcome for batch registration (`Ok(agent_id)` / `Err(code)`).
@@ -1025,7 +1027,9 @@ impl AgentRegistryContract {
             stats.total_queries += 1;
             stats.cache_hits += 1;
             stats.total_matches_found += cached_results.len() as u64;
-            env.storage().instance().set(&DataKey::DiscoveryStats, &stats);
+            env.storage()
+                .instance()
+                .set(&DataKey::DiscoveryStats, &stats);
 
             return cached_results;
         }
@@ -1139,7 +1143,8 @@ impl AgentRegistryContract {
                 100u32
             };
 
-            let composite_score = (30 * rep_score) + (25 * price_score) + (25 * avail_score) + (20 * response_score);
+            let composite_score =
+                (30 * rep_score) + (25 * price_score) + (25 * avail_score) + (20 * response_score);
 
             results.push_back(DiscoveryResult {
                 agent_id: record.id,
@@ -1157,7 +1162,9 @@ impl AgentRegistryContract {
             let mut j = i + 1;
             let mut max_idx = i;
             while j < results.len() {
-                if results.get(j).unwrap().composite_score > results.get(max_idx).unwrap().composite_score {
+                if results.get(j).unwrap().composite_score
+                    > results.get(max_idx).unwrap().composite_score
+                {
                     max_idx = j;
                 }
                 j += 1;
@@ -1186,7 +1193,9 @@ impl AgentRegistryContract {
             });
         stats.total_queries += 1;
         stats.total_matches_found += results.len() as u64;
-        env.storage().instance().set(&DataKey::DiscoveryStats, &stats);
+        env.storage()
+            .instance()
+            .set(&DataKey::DiscoveryStats, &stats);
 
         // 7. Emit DiscoveryQuery event
         env.events().publish(
@@ -1606,17 +1615,7 @@ fn get_metadata_u32(
     default_val
 }
 
-// ─── Unit tests ──────────────────────────────────────────────────────────────
-
-    #[test]
-    fn estimate_gas_deregister_with_bond_operation() {
-        let (env, client) = setup();
-        let one = client.estimate_gas(&String::from_str(&env, "deregister_with_bond"), &1);
-        let two = client.estimate_gas(&String::from_str(&env, "deregister_with_bond"), &2);
-        assert_eq!(one, GAS_DEREGISTER_WITH_BOND);
-        assert_eq!(two, GAS_DEREGISTER_WITH_BOND * 2);
-    }
-}
-
+#[cfg(test)]
+mod test;
 #[cfg(test)]
 mod test_multisig;
