@@ -20,18 +20,10 @@
                   "map": [
                     {
                       "key": {
-                        "symbol": "cleanup_error"
+                        "symbol": "deregister_with_bond"
                       },
                       "val": {
-                        "u64": 8000
-                      }
-                    },
-                    {
-                      "key": {
-                        "symbol": "cleanup_error_marginal"
-                      },
-                      "val": {
-                        "u64": 4000
+                        "u64": 40000
                       }
                     },
                     {
@@ -64,6 +56,14 @@
                       },
                       "val": {
                         "u64": 15000
+                      }
+                    },
+                    {
+                      "key": {
+                        "symbol": "slash_bond"
+                      },
+                      "val": {
+                        "u64": 30000
                       }
                     },
                     {
@@ -142,18 +142,10 @@
                           "map": [
                             {
                               "key": {
-                                "symbol": "cleanup_error"
+                                "symbol": "deregister_with_bond"
                               },
                               "val": {
-                                "u64": 8000
-                              }
-                            },
-                            {
-                              "key": {
-                                "symbol": "cleanup_error_marginal"
-                              },
-                              "val": {
-                                "u64": 4000
+                                "u64": 40000
                               }
                             },
                             {
@@ -186,6 +178,14 @@
                               },
                               "val": {
                                 "u64": 15000
+                              }
+                            },
+                            {
+                              "key": {
+                                "symbol": "slash_bond"
+                              },
+                              "val": {
+                                "u64": 30000
                               }
                             },
                             {

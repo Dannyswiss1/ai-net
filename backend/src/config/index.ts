@@ -39,6 +39,50 @@ const envSchema = z.object({
   HEARTBEAT_STALE_THRESHOLD_MINUTES: z.coerce.number().int().positive().default(5),
   /** Hours an offline agent is kept before permanent cleanup. Default: 24. */
   AGENT_OFFLINE_DELETE_HOURS: z.coerce.number().int().positive().default(24),
+
+  // ── Payment reconciliation ──────────────────────────────────────────────────
+  /** Optional webhook URL that receives reconciliation discrepancy alerts. */
+  RECONCILIATION_WEBHOOK_URL: z.string().url().optional(),
+  /** Automated reconciliation interval in milliseconds. Default: 86 400 000 (daily). */
+  RECONCILIATION_INTERVAL_MS: z.coerce.number().int().positive().default(86_400_000),
+
+  // ── Response Compression ────────────────────────────────────────────────────
+  /** Minimum response size in bytes before compression is applied. Default: 1024 (1 KB). */
+  COMPRESSION_THRESHOLD: z.coerce.number().int().min(0).default(1024),
+  /** gzip compression level 1–9. Lower = faster, higher = smaller. Default: 6. */
+  COMPRESSION_LEVEL: z.coerce.number().int().min(1).max(9).default(6),
+  /** Enable Brotli compression when the client sends Accept-Encoding: br. Default: true. */
+  COMPRESSION_ENABLE_BROTLI: z
+    .enum(["true", "false"])
+    .transform((v) => v === "true")
+    .default("true"),
+
+  // ── API Versioning ──────────────────────────────────────────────────────────
+  /** Latest API version. Default: "2.0". */
+  API_LATEST_VERSION: z.string().default("2.0"),
+  /** Supported API versions (comma-separated). Default: "1.0,1.1,2.0". */
+  API_SUPPORTED_VERSIONS: z.string().default("1.0,1.1,2.0"),
+  /** Default API version when no header is provided. Default: "1.0" for backward compatibility. */
+  API_DEFAULT_VERSION: z.string().default("1.0"),
+  /** Sunset date for deprecated API versions (ISO 8601 format). Optional. */
+  API_V1_SUNSET_DATE: z.string().optional(),
+
+  // ── Admin API ───────────────────────────────────────────────────────────────
+  /**
+   * Shared secret required by admin-only endpoints such as
+   * `GET /health/dashboard`. Sent as `X-Admin-API-Key: <key>` or
+   * `Authorization: Bearer <key>`. When unset, those endpoints refuse every
+   * request with 503 rather than falling open.
+   */
+  ADMIN_API_KEY: z.string().min(1).optional(),
+
+  // ── Health dashboard metrics ────────────────────────────────────────────────
+  /** How long a dashboard snapshot is served before recollection. Default: 5 000 (5 s). */
+  METRICS_CACHE_TTL_MS: z.coerce.number().int().positive().default(5_000),
+  /** Rolling window used for request rate/latency/error analytics. Default: 60 000 (1 min). */
+  METRICS_WINDOW_MS: z.coerce.number().int().positive().default(60_000),
+  /** Maximum request samples retained in memory. Default: 1 000. */
+  METRICS_MAX_SAMPLES: z.coerce.number().int().positive().default(1_000),
 });
 
 
