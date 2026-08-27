@@ -1052,7 +1052,7 @@ impl AgentRegistryContract {
         let current_total = get_total_agents(&env);
         env.storage()
             .instance()
-            .set(&DataKey::TotalAgents, &(current_total + agents.len() as u32));
+            .set(&DataKey::TotalAgents, &(current_total + agents.len()));
         extend_ttl_batch(&env, &ttl_keys);
 
         results
@@ -1475,7 +1475,9 @@ impl AgentRegistryContract {
     /// Update storage configuration (admin only).
     pub fn set_storage_config(env: Env, config: StorageConfig) -> Result<(), Error> {
         require_admin(&env)?;
-        env.storage().instance().set(&DataKey::StorageConfig, &config);
+        env.storage()
+            .instance()
+            .set(&DataKey::StorageConfig, &config);
         env.storage()
             .instance()
             .extend_ttl(TTL_THRESHOLD, TTL_EXTEND_TO);
@@ -2931,9 +2933,18 @@ mod test {
         ];
         let res = client.register_agents(&batch);
         assert_eq!(res.len(), 3);
-        assert_eq!(res.get(0).unwrap(), BatchResult::Ok(Symbol::new(&env, "ag1")));
-        assert_eq!(res.get(1).unwrap(), BatchResult::Ok(Symbol::new(&env, "ag2")));
-        assert_eq!(res.get(2).unwrap(), BatchResult::Err(Error::StorageLimitReached as u32));
+        assert_eq!(
+            res.get(0).unwrap(),
+            BatchResult::Ok(Symbol::new(&env, "ag1"))
+        );
+        assert_eq!(
+            res.get(1).unwrap(),
+            BatchResult::Ok(Symbol::new(&env, "ag2"))
+        );
+        assert_eq!(
+            res.get(2).unwrap(),
+            BatchResult::Err(Error::StorageLimitReached as u32)
+        );
 
         // Atomic batch aborts on any failure
         assert_eq!(client.total_agents(), 0);
