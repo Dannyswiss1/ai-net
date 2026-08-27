@@ -258,4 +258,3 @@ pub struct DiscoveryQueryEvent {
     /// Number of matching agents discovered and ranked.
     pub matches_count: u32,
 }
-

@@ -1530,3 +1530,126 @@ fn discover_agents_empty_match_returns_empty() {
     assert_eq!(stats.total_queries, 1);
     assert_eq!(stats.total_matches_found, 0);
 }
+
+#[test]
+fn test_total_agents_increments_and_decrements() {
+    let (env, client) = setup();
+    let owner = Address::generate(&env);
+
+    assert_eq!(client.total_agents(), 0);
+
+    client.register_agent(&make_record(&env, "ag1", "research", owner.clone()));
+    assert_eq!(client.total_agents(), 1);
+
+    let batch = soroban_sdk::vec![
+        &env,
+        make_record(&env, "ag2", "research", owner.clone()),
+        make_record(&env, "ag3", "coding", owner.clone()),
+    ];
+    let batch_res = client.register_agents(&batch);
+    assert_eq!(batch_res.len(), 2);
+    assert_eq!(client.total_agents(), 3);
+
+    client.deregister_agent(&Symbol::new(&env, "ag1"));
+    assert_eq!(client.total_agents(), 2);
+}
+
+#[test]
+fn test_storage_config_global_limit() {
+    let (env, client, _admin) = setup_with_admin();
+    let owner = Address::generate(&env);
+
+    let cfg = StorageConfig {
+        max_agents: 2,
+        max_per_capability: 0,
+    };
+    client.set_storage_config(&cfg);
+    assert_eq!(client.get_storage_config(), cfg);
+
+    assert!(client
+        .try_register_agent(&make_record(&env, "ag1", "research", owner.clone()))
+        .is_ok());
+    assert!(client
+        .try_register_agent(&make_record(&env, "ag2", "coding", owner.clone()))
+        .is_ok());
+
+    let res = client.try_register_agent(&make_record(&env, "ag3", "risk", owner.clone()));
+    assert_eq!(res, Err(Ok(Error::StorageLimitReached)));
+}
+
+#[test]
+fn test_storage_config_per_capability_limit() {
+    let (env, client, _admin) = setup_with_admin();
+    let owner = Address::generate(&env);
+
+    let cfg = StorageConfig {
+        max_agents: 0,
+        max_per_capability: 1,
+    };
+    client.set_storage_config(&cfg);
+
+    assert!(client
+        .try_register_agent(&make_record(&env, "ag1", "research", owner.clone()))
+        .is_ok());
+
+    let res = client.try_register_agent(&make_record(&env, "ag2", "research", owner.clone()));
+    assert_eq!(res, Err(Ok(Error::CapabilityLimitReached)));
+
+    assert!(client
+        .try_register_agent(&make_record(&env, "ag3", "coding", owner.clone()))
+        .is_ok());
+}
+
+#[test]
+fn test_storage_config_batch_limits() {
+    let (env, client, _admin) = setup_with_admin();
+    let owner = Address::generate(&env);
+
+    let cfg = StorageConfig {
+        max_agents: 2,
+        max_per_capability: 0,
+    };
+    client.set_storage_config(&cfg);
+
+    let batch = soroban_sdk::vec![
+        &env,
+        make_record(&env, "ag1", "research", owner.clone()),
+        make_record(&env, "ag2", "research", owner.clone()),
+        make_record(&env, "ag3", "coding", owner.clone()),
+    ];
+    let res = client.register_agents(&batch);
+    assert_eq!(res.len(), 3);
+    assert_eq!(
+        res.get(0).unwrap(),
+        BatchResult::Ok(Symbol::new(&env, "ag1"))
+    );
+    assert_eq!(
+        res.get(1).unwrap(),
+        BatchResult::Ok(Symbol::new(&env, "ag2"))
+    );
+    assert_eq!(
+        res.get(2).unwrap(),
+        BatchResult::Err(Error::StorageLimitReached as u32)
+    );
+
+    // Atomic batch aborts on any failure
+    assert_eq!(client.total_agents(), 0);
+}
+
+#[test]
+fn test_non_admin_cannot_set_storage_config() {
+    let env = Env::default();
+    let id = env.register(AgentRegistryContract, ());
+    let client = AgentRegistryContractClient::new(&env, &id);
+    let admin = Address::generate(&env);
+    client.initialize(&admin);
+
+    let cfg = StorageConfig {
+        max_agents: 10,
+        max_per_capability: 5,
+    };
+
+    env.mock_auths(&[]);
+    let res = client.try_set_storage_config(&cfg);
+    assert!(res.is_err());
+}

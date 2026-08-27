@@ -110,4 +110,3 @@ pub struct DiscoveryStats {
     /// Number of queries served from in-memory / temporary storage cache.
     pub cache_hits: u64,
 }
-
