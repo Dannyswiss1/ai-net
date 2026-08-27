@@ -214,6 +214,8 @@ pub enum DataKey {
     MultisigConfig,
     Proposal(u64),
     ProposalIdSequence,
+    StorageConfig,
+    TotalAgents,
 }
 
 /// Per-item outcome for batch registration (`Ok(agent_id)` / `Err(code)`).
